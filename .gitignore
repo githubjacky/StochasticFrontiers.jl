@@ -1,5 +1,10 @@
 /Manifest.toml
 
+# personal test
 test/model/
+
+# test data
 test/data/
+
+
 .DS_Store
