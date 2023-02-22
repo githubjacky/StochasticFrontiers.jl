@@ -81,8 +81,8 @@ function mle(model, data, options, init)
             opt.Options(
                 g_tol=options[:tolerance],
                 iterations=options[:warmstart_maxIT],
-                store_trace=options[:verbose],
-                show_trace=options[:verbose]
+                # store_trace=options[:verbose],
+                # show_trace=options[:verbose]
             )
         )
         init = opt.minimizer(warmup_opt)
@@ -96,8 +96,8 @@ function mle(model, data, options, init)
         opt.Options(
             g_tol=options[:tolerance],
             iterations=options[:main_maxIT],
-            store_trace=options[:verbose],
-            show_trace=options[:verbose]
+            # store_trace=options[:verbose],
+            # show_trace=options[:verbose]
         )
     )
     _coevec = opt.minimizer(main_opt)
@@ -178,7 +178,6 @@ function output_estimation(nofobs, warm_opt, main_opt)
     println(" Iteration Limit Reached:    $(opt.iteration_limit_reached(main_opt))")
     println("")
 
-    return loglikelihood
 end
 
 

@@ -293,12 +293,14 @@ function _marginaleffect(ξ, struc, data, bootstrap)
     dist_data = unpack(distof(data))
     var_nums = [numberofvar(i) for i in dist_data]
     var_num = sum(var_nums)
-    dist_data = hcat(dist_data...)
-    dist_coef = slice(ξ, struc.ψ, mle=true)[2]
 
+    
+    dist_coef = slice(ξ, struc.ψ, mle=true)[2]
+    # the purpose of `let` is to avoid boxed variables required by the `@floop`
+    dist_data = hcat(dist_data...)
     mm = Matrix{Float64}(undef, numberofobs(dist_data), var_num)
-    @floop for i = axes(mm, 1)
-        mm[i, :] = gradient(
+    for i = axes(mm, 1)
+        @inbounds mm[i, :] = gradient(
             marg -> uncondU(
                 typeofdist(data),
                 [reshape(j, 1, length(j)) for j in slice(marg, var_nums)]...,

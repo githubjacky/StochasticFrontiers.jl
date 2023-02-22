@@ -4,7 +4,8 @@ function jlmsbc(ξ, model::Cross, data::Data)
         model, 
         data
     )
-   return _jlmsbc(typeofdist(data), σᵥ², dist_param..., ϵ)
+    jlms, bc = _jlmsbc(typeofdist(data), σᵥ², dist_param..., ϵ)
+   return jlms, bc
 end
 
 marginaleffect(ξ, model::Cross, data, bootstrap=false) = _marginaleffect(ξ, model, data, bootstrap)

@@ -46,7 +46,7 @@ function sfopt(;kwargs...)
         :main_solver=>Newton,
         :main_maxIT=>2000,
         :tolerance=>1e-8,
-        :verbose=>false,
+        :verbose=>true,
         :table_format=>:text
     )
     # values(kwags)` get a named tuple
@@ -177,37 +177,45 @@ function sfmodel_fit(;spec,
     )
 
     # mle estimation
-    modelinfo(model)  # print some model information
-    if isa(options[:warmstart_solver], Tuple{})
-        printstyled("\n * optimization \n\n", color=:yellow)
-    else
-        printstyled("\n * optimization(with warmstart) \n\n", color=:yellow)
+    if options[:verbose]
+        modelinfo(model)  # print some model information
+        if isa(options[:warmstart_solver], Tuple{})
+            printstyled("\n * optimization \n\n", color=:yellow)
+        else
+            printstyled("\n * optimization(with warmstart) \n\n", color=:yellow)
+        end
     end
+
     _Hessian, ξ, warmup_opt, main_opt = mle(model, data, options, startpt)
     
     # output the mle optimiazation results
     diagonal = post_estimation(get_modeldata(model), data, _Hessian, ξ)  # diagonostic
-    loglikelihood = output_estimation(numberofobs(data), warmup_opt, main_opt)
-    stderr, cilow, ciup = output_table(get_paramname(model), ξ, diagonal, numberofobs(data), options[:table_format])
-    
+
     # efficiency and inefficiency index
     jlms, bc = jlmsbc(ξ, model, data)
+    loglikelihood = round(-1*opt.minimum(main_opt); digits=5)
 
-    println("Table format: $(options[:table_format]). Use `sfopt(...)` to choose between `:text`, `:html`, and `:latex`.")
+    if options[:verbose]
+        output_estimation(numberofobs(data), warmup_opt, main_opt)
+        stderr, cilow, ciup = output_table(get_paramname(model), ξ, diagonal, numberofobs(data), options[:table_format])
+        
+        
+        println("Table format: $(options[:table_format]). Use `sfopt(...)` to choose between `:text`, `:html`, and `:latex`.")
 
-    printstyled("\n\n*********************************\n "; color=:cyan)
-    printstyled("    Additional Information:     \n"; color=:cyan); 
-    printstyled("*********************************\n\n"; color=:cyan)
-    println(" - OLS (frontier-only) log-likelihood: $llols")
-    println(" - Skewness of OLS residuals: $skols")
-    println(" - The sample mean of the JLMS inefficiency index: $(round(mean(jlms), digits=5))")
-    println(" - The sample mean of the BC efficiency index: $(round(mean(bc), digits=5))")
-    println(" - Use `name.list` to see saved results (keys and values) where `name` is the return specified in `name = sfmodel_fit(...)`")
-    println("     - `name.loglikelihood`: the log-likelihood value of the model;")
-    println("     - `name.jlms`: Jondrow et al. (1982) inefficiency index;")
-    println("     - `name.bc`: Battese and Coelli (1988) efficiency index;")
-    println(" - Use `keys(name)` to see available keys.\n")
-    printstyled("*********************************\n\n"; color=:cyan)
+        printstyled("\n\n*********************************\n "; color=:cyan)
+        printstyled("    Additional Information:     \n"; color=:cyan); 
+        printstyled("*********************************\n\n"; color=:cyan)
+        println(" - OLS (frontier-only) log-likelihood: $llols")
+        println(" - Skewness of OLS residuals: $skols")
+        println(" - The sample mean of the JLMS inefficiency index: $(round(mean(jlms), digits=5))")
+        println(" - The sample mean of the BC efficiency index: $(round(mean(bc), digits=5))")
+        println(" - Use `name.list` to see saved results (keys and values) where `name` is the return specified in `name = sfmodel_fit(...)`")
+        println("     - `name.loglikelihood`: the log-likelihood value of the model;")
+        println("     - `name.jlms`: Jondrow et al. (1982) inefficiency index;")
+        println("     - `name.bc`: Battese and Coelli (1988) efficiency index;")
+        println(" - Use `keys(name)` to see available keys.\n")
+        printstyled("*********************************\n\n"; color=:cyan)
+    end  # end if options[:verbose]
 
     res = (
         ξ=ξ, model=model, data=data, options=options, jlms=jlms, bc=bc, 
