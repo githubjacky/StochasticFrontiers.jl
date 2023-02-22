@@ -1,15 +1,21 @@
-function composite_error(ξ, struc::Cross, data::Data)
-    β, dist_coeff, Wᵥ = slice(ξ, struc.ψ, mle=true)
-    ϵ = (data.type() * (data.depvar - data.frontiers*β))[:, 1]
-    σᵥ² = exp.(data.σᵥ² * Wᵥ)
-    dist_param = data.dist(dist_coeff)
+function composite_error(coeff, model::Cross, data)
+    econtype, fitted_dist, _σᵥ², depvar, frontiers = unpack(
+        data, (:econtype, :fitted_dist, :σᵥ², :depvar, :frontiers)
+    )
+    ϵ = (econtype * (depvar- frontiers*coeff[1]))[:, 1]
+    σᵥ² = exp.(_σᵥ² * coeff[3])
+    dist_param = fitted_dist(coeff[2])
 
     return ϵ, σᵥ², dist_param
 end
 
 
-function LLT(ξ, struc::Cross, data::Data)
-    ϵ, σᵥ², dist_param = composite_error(ξ, struc, data)
+function LLT(ξ, model::Cross, data::Data)
+    ϵ, σᵥ², dist_param = composite_error(
+        slice(ξ, get_paramlength(model), mle=true), 
+        model, 
+        data
+    )
 
-    return -sum(loglikelihood(typeof(data.dist), σᵥ², dist_param..., ϵ))
+    return -sum(loglikelihood(typeofdist(data), σᵥ², dist_param..., ϵ))
 end

@@ -11,7 +11,7 @@ to Matrix.
 See also: [`varvals`](@ref)
 # Examples
 ```juliadoctest
-julia> a = (:a, :b, :c); b = :a
+julia> a = (:a, :b, :c); b = :a;
 
 julia> c = convert(Vector, a)
 3-element Vector{Symbol}:
@@ -196,14 +196,14 @@ function paramname_col2(frontiers::AbstractMatrix, dist_props::Tuple, σᵥ²::A
     en = length(dist_props) + 2
     col2[begin] = [Symbol(:frontiers, i) for i=axes(frontiers, 2)]
     for i = eachindex(dist_props)
-        if nofobs(dist_props[i], 2) == 1
+        if numberofvar(dist_props[i]) == 1
             col2[begin+i] = [:_cons]
         else
             col2[begin+i] = [Symbol(:exogenous, j) for j=axes(dist_props[i], 2)]
             col2[begin+i][end] = :_cons
         end
     end
-    if nofobs(σᵥ², 2) == 1
+    if numberofvar(σᵥ²) == 1
         col2[en] = [:_cons]
     else
         col2[en] = [Symbol(:exogenous, i) for i=axes(σᵥ², 2)]
@@ -379,7 +379,7 @@ function getvar(data::Tuple,
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
     col2 = isa(df, DataFrame) ? paramname_col2(_frontiers, dist_param, _σᵥ²) : paramname_col2(frontiers, dist_param, σᵥ²)   # generate var parameters for making estimation table
 
-    return PanelData(type, dist, σᵥ², depvar, frontiers, sum(nofobs.(depvar, 1))), col1, col2
+    return PanelData(type, dist, σᵥ², depvar, frontiers, numberofobs(depvar)), col1, col2
 end
 
 
@@ -408,7 +408,7 @@ The first element of return tuple is non-multicollinearity matrix and the second
 is indices of pivot columns
 """
 function isMultiCollinearity(name::Symbol, themat::Matrix)
-    colnum = nofobs(themat, 2)
+    colnum = size(themat, 2)
     colnum == 1 && return themat, 1
     pivots = rref_with_pivots(themat)[2]
     if length(pivots) != colnum
@@ -442,11 +442,11 @@ be done applying model specific method `sfspec`.*
 See also: [`complete_template`](@ref)
 """
 function Ψ(data::AbstractData)
-    dist, σᵥ², frontiers = unpack(data, (:dist, :σᵥ², :frontiers))
+    fitted_dist, σᵥ², frontiers = unpack(data, (:fitted_dist, :σᵥ², :frontiers))
     # length of 30 just for the prevention
     # notice that the type can't be assiguned(`Vector{Int}(undf, 30)` is not allowed) since we need to define elements later
     ψ = Vector(undef, 30)
-    ψ[1:3] .= numberOfVar(frontiers), sum(numberOfVar.(unpack(dist))), numberOfVar(σᵥ²)
+    ψ[1:3] .= numberofvar(frontiers), sum(numberofvar.(unpack(fitted_dist))), numberofvar(σᵥ²)
     return ψ
 end
 
@@ -488,25 +488,26 @@ end
 
 
 """
-    varNum(m::AbstractVecOrMat{<:Real})    
+    numberofvar(m::AbstractVecOrMat{<:Real})    
 
 *optional utility function*
 
 Used to check the number of explanatory variables.
 """
-numberOfVar(m::AbstractVecOrMat) = size(m, 2)
+numberofvar(m::AbstractVecOrMat) = size(m, 2)
 
 
 """
-    obsNum(m::AbstractMatrix{<:Real})
-    obsNUM(m::AbstractVector{<:Real})
+    numberofobs(m::AbstractMatrix{<:Real})
+    numberofobs(m::AbstractVector{<:Real})
 
 *optional utility function*
 
 To calculate the number of observations.
 """
-numberOfobs(m::AbstractMatrix) = nofobs(m, 1)
-numberOfobs(v::AbstractVector) = length(v)
+numberofobs(m::AbstractMatrix) = size(m, 1)
+numberofobs(v::AbstractVector) = length(v)
+numberofobs(a::AbstractData) = a.nofobs
 
 
 

@@ -122,9 +122,9 @@ end
 function initial_condition(frontiers, depvar, init::NamedTuple, nofx, nofobs, noffixed; kwargs...)
     β0, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
-    startpt = ones(AbstractFloat, kwargs.nofparam) .* 0.1
+    startpt = ones(AbstractFloat, kwargs[:nofparam]) .* 0.1
     startpt[1:nofx] = β0
-    template = kwargs.paramnames
+    template = kwargs[:paramnames]
     push!(template, :end)  # to prevent can't getnext
     for i in keys(init)
         beg = findfirst(x->x==i, template)
@@ -138,7 +138,7 @@ end
 function initial_condition(frontiers, depvar, init::Nothing, nofx, nofobs, noffixed; kwargs...)
     β0, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
-    startpt = ones(AbstractFloat, kwargs.nofparam) .* 0.1
+    startpt = ones(AbstractFloat, kwargs[:nofparam]) .* 0.1
     startpt[1:nofx] = β0
 
     return startpt, llols, skols
@@ -170,10 +170,10 @@ function sfmodel_fit(;spec,
     options === nothing && (options = sfopt())
 
     # set the initial condition
-    noffixed = !isa(data, PanelData) ? 0 : numberofi(data.depvar)
+    noffixed = !isa(data, PanelData) ? 0 : numberofi(data)
     startpt, llols, skols = initial_condition(
-        data.frontiers, data.depvar, init, model.ψ[1], data.nofobs, noffixed;
-        nofparam=model.ψ[end], paramnames=model.paramnames[:, 1]
+        frontier(data), dependentvar(data), init, get_paramlength(model)[1], numberofobs(data), noffixed;
+        nofparam=numberofparam(model), paramnames=get_paramname(model)[:, 1]
     )
 
     # mle estimation
@@ -186,9 +186,9 @@ function sfmodel_fit(;spec,
     _Hessian, ξ, warmup_opt, main_opt = mle(model, data, options, startpt)
     
     # output the mle optimiazation results
-    diagonal = post_estimation(model.data, data, _Hessian, ξ)  # diagonostic
-    loglikelihood = output_estimation(data.nofobs, warmup_opt, main_opt)
-    stderr, cilow, ciup = output_table(model.paramnames, ξ, diagonal, data.nofobs, options[:table_format])
+    diagonal = post_estimation(get_modeldata(model), data, _Hessian, ξ)  # diagonostic
+    loglikelihood = output_estimation(numberofobs(data), warmup_opt, main_opt)
+    stderr, cilow, ciup = output_table(get_paramname(model), ξ, diagonal, numberofobs(data), options[:table_format])
     
     # efficiency and inefficiency index
     jlms, bc = jlmsbc(ξ, model, data)

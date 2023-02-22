@@ -50,39 +50,6 @@ function warmup(_Hessian,
     return warmup_opt, init
 end
 
-"""
-    estimation(_Hessian, init, main_solver, tolerance, warmstart_maxIT, verbose)
-
-Maximum likelihood estimation(main)
-
-# Arguments
-- `_Hessian::NLSolversBase.TwiceDifferentiable{T} where T`: required by the optimiazation
-- `_init::Vector{<:Real}`: initial condition(starting point)
-- `main_solver::opt.AbstractOptimizer`: main optimizer
-- `tolerance::AbstractFloat`: criterion for convergence
-- `main_maxIT::Int`: maximum iterations
-- `verbose::Bool`
-"""
-function estimation(_Hessian,
-                    init,
-                    main_solver,
-                    tolerance,
-                    main_maxIT,
-                    verbose)
-    main_opt = opt.optimize(
-        _Hessian,
-        init,
-        main_solver,
-        opt.Options(
-            g_tol=tolerance,
-            iterations=main_maxIT,
-            store_trace=verbose,
-            show_trace=verbose
-        )
-    )
-    _coevec = opt.minimizer(main_opt)
-    return main_opt, _coevec
-end
 
 
 """
@@ -106,17 +73,34 @@ function mle(model, data, options, init)
     warmup_opt = nothing
 
     # warmup optimiazation
-    warmstart && (warmup_opt, init = warmup(
-        _Hessian,
-        init,
-        getindex(options, (:warmstart_solver, :tolerance, :warmstart_maxIT, :verbose))...,
-    ))
+    if warmstart
+        warmup_opt = opt.optimize(
+            _Hessian,
+            init,
+            options[:warmstart_solver],
+            opt.Options(
+                g_tol=options[:tolerance],
+                iterations=options[:warmstart_maxIT],
+                store_trace=options[:verbose],
+                show_trace=options[:verbose]
+            )
+        )
+        init = opt.minimizer(warmup_opt)
+    end
+
     # main optimiazation
-    main_opt, _coevec = estimation(
+    main_opt = opt.optimize(
         _Hessian,
         init,
-        getindex(options, (:main_solver, :tolerance, :main_maxIT, :verbose))...,
+        options[:main_solver],
+        opt.Options(
+            g_tol=options[:tolerance],
+            iterations=options[:main_maxIT],
+            store_trace=options[:verbose],
+            show_trace=options[:verbose]
+        )
     )
+    _coevec = opt.minimizer(main_opt)
     
     return _Hessian, _coevec, warmup_opt, main_opt
 end
@@ -152,8 +136,8 @@ function post_estimation(model_data, data, _Hessinan, _coevec)
     diagonal = diag(var_cov_matrix)
     if !all(diagonal .> 0)
         _ = isMultiCollinearity.(
-            [:frontiers, fieldnames(typeof(data.dist))..., :σᵥ²],
-            [data.frontiers, unpack(data.dist)..., data.σᵥ²]
+            [:frontiers, fieldnames(typeofdist(data))..., :σᵥ²],
+            [data.frontiers, unpack(data.fitted_dist)..., data.σᵥ²]
         )
         if fieldcount(typeof(model_data)) != 0 
             _ = isMultiCollinearity.(

@@ -39,13 +39,17 @@ function check_idgood(simulate_η)
     return η
 end
 
-function jlmsbc(ξ, struc::SNCre, data::PanelData)
-    simulate_η, σᵥ², dist_param = composite_error(ξ, struc, data)
+function jlmsbc(ξ, model::SNCre, data::PanelData)
+    simulate_η, σᵥ², dist_param = composite_error(
+        slice(ξ, get_paramlength(model), mle=true), 
+        model, 
+        data
+    )
 
     η = check_idgood(simulate_η)
 
     jlms, bc = _jlmsbc(
-        typeof(data.dist), Panel(σᵥ²), [Panel(i) for i in dist_param]..., η
+        typeofdist(data), Panel(σᵥ²), [Panel(i) for i in dist_param]..., η
     )
    return jlms, bc
 end

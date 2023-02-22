@@ -48,12 +48,12 @@ Purely calculate the total composite error term
     3. data of the distribution's parameters
     4. coefficient of the distribution's parameters
 """
-function eta(porc, SCE::AR, simulate_ϵ, η_param)
-    p = SCE()  # lag period
+function eta(porc, serialcorr::AR, simulate_ϵ, lagcoeff, args...)
+    p = lagparam(serialcorr)  # lag period
 
     # if lag period > 1, let all the element of ρ <  1 to ensure stationality
     # notice that the last coefficient is constant which will be decluded
-    @inbounds rho = p == 1 ? η_param[begin] : (rho = coeffs(fromroots(η_param[begin]./(abs.(η_param[begin]).+1)))[begin:end-1])  
+    rho = p == 1 ? lagcoeff : (rho = coeffs(fromroots(lagcoeff./(abs.(lagcoeff).+1)))[begin:end-1])  
     
     base = lagdrop(simulate_ϵ, p)
     ar_terms = [ 
@@ -84,7 +84,7 @@ Subtract the `simulate_ϵ` from the moving average terms
 function dema(porc, simulate_ϵ, Eη, q, theta)
     panelized_simulate_ϵ = Panelized(simulate_ϵ)
     simulate_η = Vector(undef, numberofi(simulate_ϵ))
-    for i = eachindex(panelized_simulate_ϵ)
+    @inbounds for i = eachindex(panelized_simulate_ϵ)
         T, R = nofobs(panelized_simulate_ϵ[i])
         ηᵢ = Matrix(undef, T+q, R)
         ηᵢ[begin:q, :] .= Eη[i]
@@ -103,21 +103,20 @@ function dema(porc, simulate_ϵ, Eη, q, theta)
     return simulate_η
 end
 
-function eta(porc, SCE::MA, simulate_ϵ, η_param)
+function eta(porc, serialcorr::MA, simulate_ϵ, η_param)
     @inbounds Εη = mean.([
-        uncondU(η_param[2], i..., η_param[4])
-        for i in zip([Panelized(i) for i in η_param[3]]...)
+        uncondU(η_param[2], dist_dataᵢ..., η_param[4])
+        for dist_dataᵢ in zip([Panelized(i) for i in η_param[3]]...)
     ])
-    simulate_η = dema(porc, simulate_ϵ, Εη, SCE() , η_param[1])
+    simulate_η = dema(porc, simulate_ϵ, Εη, lagparam(serialcorr) , η_param[1])
 
     return simulate_η
 end
 
-function eta(porc, SCE::ARMA, simulate_ϵ, η_param)
-    p, q = unpack(SCE)
-    coeff, dist_type, dist_data, dist_coeff = η_param
-    @inbounds rho, θ = η_param[1][begin:p], η_param[2][begin+p:end]
-    p != 1 && (@inbounds rho = coeffs(fromroots(rho./(abs.(rho).+1)))[begin:end-1])
+function eta(porc, serialcorr::ARMA, simulate_ϵ, η_param)
+    p, q = unpack(serialcorr)
+    rho, θ = η_param[1][begin:p], η_param[2][begin+p:end]
+    p != 1 && (rho = coeffs(fromroots(rho./(abs.(rho).+1)))[begin:end-1])
 
     base = lagdrop(simulate_ϵ, p)
     ar_terms = [ 
@@ -137,53 +136,51 @@ function eta(porc, SCE::ARMA, simulate_ϵ, η_param)
 end
 
 
-function composite_error(ξ,  model::SNCre, data::PanelData)
-    β, dist_coeff, Wᵥ, δ, Wₑ, ρ  = slice(ξ, model.ψ, mle=true)  # the order matters 
-
+function composite_error(coeff, model::SNCre, data::PanelData)
+    serialcorr, R, _σₑ², xmean = unpack(model, (:serialcorr, :R, :σₑ², :xmean))
+    econtype, fitted_dist, σᵥ², depvar, frontiers = unpack(
+        data, (:econtype, :fitted_dist, :σᵥ², :depvar, :frontiers)
+    )
     σᵥ² = Panelized(
-        lagdrop(broadcast(exp, data.σᵥ²*Wᵥ), model.SCE())
+        lagdrop(broadcast(exp, σᵥ²*coeff[3]), lagparam(serialcorr))
     )
     dist_param =[
-        Panelized(lagdrop(i, model.SCE()))
-        for i in data.dist(dist_coeff)
+        Panelized(lagdrop(i, lagparam(serialcorr)))
+        for i in fitted_dist(coeff[2])
     ]
 
     Random.seed!(1234)
-    σₑ² = exp((model.σₑ² * Wₑ)[1])  # since it must be constant(Wₑ is a vector, σₑ² is a scalar)
-    simulate_e = error_simulation(σₑ², model.R, numberofi(data.depvar), numberoft(data.depvar))
+    σₑ² = exp((_σₑ² * coeff[5])[1])  # since it must be constant(Wₑ is a vector, σₑ² is a scalar)
+    simulate_e = error_simulation(σₑ², R, numberofi(depvar), numberoft(depvar))
 
     simulate_ϵ = broadcast(
         -, 
-        (data.depvar - data.frontiers*β - model.xmean*δ), 
+        (depvar - frontiers*coeff[1] - xmean*coeff[4]), 
         simulate_e
     )
-    η_param = (ρ, typeof(data.dist), unpack(data.dist), dist_coeff)
-    simulate_η = eta(data.type(), model.SCE, simulate_ϵ, η_param)
+    simulate_η = eta(econtype, serialcorr, simulate_ϵ, coeff[6], fitted_dist, coeff[2])
 
     return simulate_η, σᵥ², dist_param
 end
 
 
 function LLT(ξ, model::SNCre, data::PanelData)
-    simulate_η, σᵥ², _dist_param = composite_error(ξ, model, data)
+    simulate_η, σᵥ², _dist_param = composite_error(
+        slice(ξ, get_paramlength(model), mle=true), model, data
+    )
     dist_param = [i for i in zip(_dist_param...)]
+    dist_type = typeofdist(data)
 
-    dist_type = typeof(data.dist)
-    @inbounds llike = [
-        log(mean(
-            [
-                Base.prod(likelihood(
-                    dist_type,
-                    σᵥ²ᵢ, 
-                    dist_paramᵢ..., 
-                    simulate_ηᵢ[:, j]
-                ))
-                for j in axes(simulate_ηᵢ, 2)
-            ]
-        ))
-        for (σᵥ²ᵢ, dist_paramᵢ, simulate_ηᵢ) in zip(σᵥ², dist_param, simulate_η)
-    ]
-    llike = broadcast(x -> isinf(x) ? -1e10 : x, llike)
+   @floop for (σᵥ²ᵢ, dist_paramᵢ, simulate_ηᵢ) in zip(σᵥ², dist_param, simulate_η)
+        llhᵢ = log(mean([
+            Base.prod(likelihood(
+                dist_type, σᵥ²ᵢ, dist_paramᵢ..., simulate_ηᵢ[:, j]
+            ))
+            for j in axes(simulate_ηᵢ, 2)
+        ]))
+        llhᵢ = !isinf(llhᵢ) ? llhᵢ : -1e10
+        @reduce llh += llhᵢ
+    end
 
-    return -sum(llike)
+    return -llh
 end

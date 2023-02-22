@@ -13,9 +13,11 @@ struct ARMA <: AbstractSerialCorr
     q::Integer
 end
 
-(s::AR)() = s.p
-(s::MA)() = s.q
-(s::ARMA)() = s.p + s.q
+lagparam(a::AR) = getproperty(a, :p)
+lagparam(a::MA) = getproperty(a, :q)
+lagparam(a::ARMA) = getproperty(a, :p) + getproperty(a, :q)
+lagparam(a::PanelModel) = lagparam(get_serialcorr(a))
+
 
 """
    SNCreData <: AbstractModelData
@@ -43,7 +45,7 @@ struct SNCre{T<:AbstractSerialCorr,
              S<:Real,
              U<:PanelMatrix,
             } <: PanelModel
-    SCE::T
+    serialcorr::T
     R::Int
     σₑ²::S
     xmean::U
@@ -52,8 +54,11 @@ struct SNCre{T<:AbstractSerialCorr,
     data::SNCreData
 end
 
+get_R(a::SNCre) = getproperty(a, :R)
+
+
 """
-    meanOfX(frontiers::PanelMatrix{T} where T)
+    meanofx(frontiers::PanelMatrix{T} where T)
 
 To estimate the correlated random effect
 
@@ -92,12 +97,12 @@ number 3 column in xmean is dropped
 5.5  1.5
 ```
 """
-function meanOfX(frontiers)
+function meanofx(frontiers)
     mean_frontiers = mean.(Panelized(frontiers), dims=1)
     noft = numberoft(frontiers)
     _xmean = [repeat(i,t) for (i,t) in zip(mean_frontiers, noft)]
     xmean = reduce(vcat, _xmean)
-    cons = ones(nofobs(xmean, 1))
+    cons = ones(numberofobs(xmean))
 
     # if the panel is balanced, the average of variable t is constant
     # `real` ensure the element type is not any which will raise error in `rref_with_pivots`
@@ -126,27 +131,27 @@ The model:
 - `R::Int`: number of correlated random effect simulation
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
 """
-function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, frontiers, SCE, R, σₑ²)
+function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ²)
     # get the variables and set up σₑ²
     paneldata, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
-    σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
+    @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
     
     # generate the mean data of frontiers for the specification of correlated random effect
-    xmean, pivots = meanOfX(paneldata.frontiers)
+    xmean, pivots = meanofx(paneldata.frontiers)
     
     # construct remaind first column of output estimation table
-    corrcol1 = isa(SCE, AR) ? (:ρ,) : (isa(SCE, MA) ? (:θ,) : (:ρ, :θ))
+    corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))
     col1 = complete_template(_col1, [:αᵢ, :log_σₑ², corrcol1...])
 
     # construct remaind second column of output estimation tabel
-    if !isa(SCE, ARMA)
+    if !isa(serialcorr, ARMA)
         var = corrcol1[1]
-        corrcol2 = [[Symbol(var, i) for i = 1:SCE()]]
+        @inbounds corrcol2 = [[Symbol(var, i) for i = 1:lagparam(serialcorr)]]
     else
         var1, var2 = corrcol1[1], corrcol1[2]
-        corrcol2 = [
-            [Symbol(var1, i) for i = 1:SCE.p], 
-            [Symbol(var2, i) for i = 1:SCE.q]
+        @inbounds corrcol2 = [
+            [Symbol(var1, i) for i = 1:serialcorr.p], 
+            [Symbol(var2, i) for i = 1:serialcorr.q]
         ]
     end
     xmean_col2 = [Symbol(:mean_, i) for i in _col2[1]]
@@ -159,10 +164,10 @@ function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, front
 
     # generate the remain rule for slicing parameter
     # generate the length of serially correlated error terms, σₑ² and correlated random effects
-    ψ = complete_template(Ψ(paneldata), [numberOfVar(xmean), 1, SCE()])
+    ψ = complete_template(Ψ(paneldata), [numberofvar(xmean), 1, lagparam(serialcorr)])
     push!(ψ, sum(ψ))
 
-    return SNCre(SCE, R, σₑ², xmean, ψ, paramnames, SNCreData()), paneldata
+    return SNCre(serialcorr, R, σₑ², xmean, ψ, paramnames, SNCreData()), paneldata
 end
 
 
@@ -204,7 +209,7 @@ end
 function modelinfo(model::SNCre)
     modelinfo1 = "flexible panel stochastic frontier model with serially correlated errors"
     
-    SCE = model.SCE
+    SCE = model.serialcorr
     modelinfo2 =
 """
     Yᵢₜ = αᵢ + Xᵢₜ*β + T*π + ϵᵢₜ

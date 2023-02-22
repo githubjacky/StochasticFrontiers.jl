@@ -14,8 +14,8 @@ end
 
 
 """
-    resampling(data::Data, model::SFmodel; replace=true)
-    resampling(data::PanelData, model::SFmodel; replace=true)
+    resampling(data::Data, model::SFmodel; rng)
+    resampling(data::PanelData, model::SFmodel; rng)
 
 Bootstrap Sampling with replacement
 """
@@ -26,8 +26,8 @@ function resampling(data::Data, model=nothing; rng)
         selected_row = sample(1:data.nofobs, data.nofobs; replace=true)
     end
     bootstrap_data = Data(
-        data.type,
-        typeof(data.dist)([i[selected_row, :] for i in unpack(data.dist)]...),
+        data.econtype,
+        typeofdist(data)([i[selected_row, :] for i in unpack(distof(data))]...),
         data.σᵥ²[selected_row, :],
         data.depvar[selected_row, :],
         data.frontiers[selected_row, :],
@@ -55,8 +55,8 @@ function resampling(data::PanelData, model=nothing; rng)
     end
     bootstrap_data = Data(
         data.type,
-        typeof(data.dist)(
-            [Panel(i[selected_row, :], i.rowidx) for i in unpack(data.dist)]...
+        typeofdist(data)(
+            [Panel(i[selected_row, :], i.rowidx) for i in unpack(distof(data))]...
         ),
         Panel(data.σᵥ²[selected_row, :], data.σᵥ².rowidx),
         Panel(data.depvar[selected_row, :], data.depvar.rowidx),
@@ -103,7 +103,7 @@ function sfCI(
     observed = !isa(_observed ,NamedTuple) ? _observed : values(_observed)
     ((level > 0.0) && (level < 1.0)) || throw("The significance level (`level`) should be between 0 and 1.")
     level > 0.50 && (level = 1-level)  # 0.95 -> 0.05
-    nofobs, nofK = nofobs(bootdata)  # number of statistics
+    nofobs, nofK = size(bootdata)  # number of statistics
     (nofK == length(observed)) || throw("The number of statistics (`observed`) does not fit the number of columns of bootstrapped data.")
 
     z1 = quantile(Normal(), level/2)
@@ -190,7 +190,7 @@ function bootstrap_marginaleffect(
     
     theMean = collect(values(obs_marg_mean))
     theSTD = sqrt.(sum((sim_res .- theMean').^2, dims=1) ./(R-1))
-    theSTD = reshape(theSTD, nofobs(theSTD, 2))
+    theSTD = reshape(theSTD, size(theSTD, 2))
     ci_mat = sfCI(bootdata=sim_res, _observed=theMean, level=level, verbose=verbose)
 
     if verbose
