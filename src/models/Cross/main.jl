@@ -1,5 +1,20 @@
+"""
+   CrossData <: AbstractModelData
+
+Model Specific data which need to be check for the multicollinearity. It's not
+necessay for each model.
+"""
 struct CrossData <: AbstractModelData end
 
+
+"""
+    Cross(ψ, paramnames, data)
+
+# Arguments
+- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
+- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
+- `data::CrossData`
+"""
 struct Cross <: SFmodel
     ψ::Vector{Any}
     paramnames::Matrix{Symbol}
@@ -7,10 +22,26 @@ struct Cross <: SFmodel
 end
 
 
-# model specification
-function sfspec(::Type{Cross}, df...; type, dist, σᵥ², depvar, frontiers)
+"""
+    sfspec(::Type{Cross}, <arguments>; type, dist, σᵥ², depvar, frontiers)
+
+The model: 
+
+# Arguments
+- `data::Union{Tuple{DataFrame}, Tuple{}}`: frame or matrix data
+- `type::Union{Type{Production}, Type{Cost}}`: type of economic interpretation
+- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: assumption of the inefficiency
+- `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`: 
+- `ivar::Union{Vector{<:Real}, Sumbol}`: specific data of panel model
+- `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`: dependent variable
+- `frontiers::Union{Matrix{<:Real}, NTuple{N, Symbol} where N}`: explanatory variables
+- `SCE::Union{AR, MA, ARMA}`: assumption of serial correlation
+- `R::Int`: number of correlated random effect simulation
+- `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
+"""
+function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers)
     # get the vaiables
-    crossdata, _col1, _col2 = getvar(df, type, dist, σᵥ², depvar, frontiers)
+    crossdata, _col1, _col2 = getvar(data, type, dist, σᵥ², depvar, frontiers)
    
     # construct remaind first column of output estimation table
     col1 = complete_template(_col1, ())
@@ -34,14 +65,14 @@ function modelinfo(Cross)
     
     modelinfo2 =
 """
-    Yᵢₜ = Xᵢₜ*β + + ϵᵢₜ
-        where ϵᵢₜ = vᵢₜ - uᵢₜ
+    Yᵢ = Xᵢ*β + + ϵᵢ
+        where ϵᵢ = vᵢ - uᵢ
 
         further,     
-            vᵢₜ ∼ N(0, σᵥ²),
+            vᵢ ∼ N(0, σᵥ²),
             σᵥ²  = exp(log_σᵥ²)
 
-            uᵢₜ ∼ N⁺(0, σᵤ²),
+            uᵢ ∼ N⁺(0, σᵤ²),
             σᵤ² = exp(log_σᵤ²)
 
     In the case of type(cost), "- uᵢₜ" above should be changed to "+ uᵢₜ"

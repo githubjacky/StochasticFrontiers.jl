@@ -49,6 +49,7 @@ include("function.jl")
 
 include("models/SNCre/main.jl")
 include("models/Cross/main.jl")
+include("models/PFEWH/main.jl")
 
 include("structure/MLE.jl")
 include("structure/main.jl")

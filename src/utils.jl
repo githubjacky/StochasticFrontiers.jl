@@ -372,8 +372,8 @@ function getvar(data::Tuple,
     )
 
     σᵥ², depvar, frontiers = Panel.(
-            readframe.((_σᵥ², _depvar, _frontiers), df=df),
-            tnum=tnum
+        readframe.((_σᵥ², _depvar, _frontiers), df=df),
+        tnum=tnum
     )
 
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table

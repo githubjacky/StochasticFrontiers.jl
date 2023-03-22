@@ -39,7 +39,6 @@ struct SNCreData <: AbstractModelData end  # initial a empty model specifc data 
 - `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
 - `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
 - `data::SNCreData`
-
 """
 struct SNCre{T<:AbstractSerialCorr,
              S<:Real,

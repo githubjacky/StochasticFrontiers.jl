@@ -202,7 +202,7 @@ function output_table(paramnames, _coevec, diagonal, nofobs, format)
     ciup = [round(_coevec[i]+tt*stderr[i], digits=5) for i = eachindex(_coevec)]
     pretty_table(
         hcat(paramnames, _coevec, stderr, t_stats, p_value, cilow, ciup),
-        header=["", "Var.", "Coef.", "Std. Err.", "z", "P>|z|", "95%CI_l", "95%CI_u"],
+        header=["", "Var.", "Coef.", "Std. Err.", "z", "Pr(>|z|)", "Lower 95%", "Upper 95%"],
         formatters = ft_printf("%5.4f", 3:8),
         compact_printing = true,
         backend = Val(format)

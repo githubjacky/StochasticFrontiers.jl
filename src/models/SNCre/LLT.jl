@@ -166,7 +166,9 @@ end
 
 function LLT(ξ, model::SNCre, data::PanelData)
     simulate_η, σᵥ², _dist_param = composite_error(
-        slice(ξ, get_paramlength(model), mle=true), model, data
+        slice(ξ, get_paramlength(model), mle=true), 
+        model, 
+        data
     )
     dist_param = [i for i in zip(_dist_param...)]
     dist_type = typeofdist(data)

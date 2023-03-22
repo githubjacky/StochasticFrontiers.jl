@@ -97,7 +97,7 @@ Create vector form of panel data.
 
 See also: [`Panel`](@ref)
 """
-struct Panelized{T<:Vector where U} <: AbstractArray{eltype(T), 1}
+struct Panelized{T<:Vector} <: AbstractArray{eltype(T), 1}
     data::T
     # compact way of representing the type for a tuple of length 2 where all elements are of type Int.
     rowidx::Vector{UnitRange{Int}}
@@ -209,6 +209,51 @@ function Panelized(data::PanelVector)
     )
     return res
 end
+
+"""
+    sf_demean(data::Panelized{Vector{Vector{<:Real}}})
+    sf_demean(data::Panelized{Vector{Matrix{<:Real}}})
+    sf_demean(data::AbstractPanel)
+
+demean function for panel data
+
+# Examples
+```juliadoctest
+julia> ivar = [1, 1, 1, 2, 2]; y=[2, 2, 4, 3, 3]; X=[3 5; 4 7; 5 9; 8 2; 3 2];
+
+julia> tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]; data = Panel(X, tnum=tnum)
+5×2 StochasticFrontiers.PanelMatrix{Int64}:
+ 3  5
+ 4  7
+ 5  9
+ 8  2
+ 3  2
+
+julia> sf_demean(data)
+5×2 StochasticFrontiers.PanelMatrix{Float64}:
+ -1.0  -2.0
+  0.0   0.0
+  1.0   2.0
+  2.5   0.0
+ -2.5   0.0
+```
+"""
+function sf_demean(data::Panelized{Vector{Vector{T}}}) where T
+    means = mean.(data)
+    transformed = [data[i] .- means[i] for i in eachindex(data, means)]
+    panel_data = Panel(reduce(vcat, transformed), data.rowidx)
+
+    return panel_data
+end
+function sf_demean(data::Panelized{Vector{Matrix{T}}}) where T
+    means = mean.(data, dims=1)
+    transformed = [data[i] .- means[i] for i in eachindex(data, means)]
+    panel_data = Panel(reduce(vcat, transformed), data.rowidx)
+
+    return panel_data
+end
+sf_demean(data::AbstractPanel) = sf_demean(Panelized(data))
+
 
 
 """
