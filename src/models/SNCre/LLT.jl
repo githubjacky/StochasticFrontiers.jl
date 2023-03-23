@@ -137,10 +137,11 @@ end
 
 
 function composite_error(coeff, model::SNCre, data::PanelData)
-    serialcorr, R, _σₑ², xmean = unpack(model, (:serialcorr, :R, :σₑ², :xmean))
-    econtype, fitted_dist, σᵥ², depvar, frontiers = unpack(
-        data, (:econtype, :fitted_dist, :σᵥ², :depvar, :frontiers)
+    fitted_dist, serialcorr, R, _σₑ², xmean = unpack(model, (:fitted_dist, :serialcorr, :R, :σₑ², :xmean))
+    econtype, σᵥ², depvar, frontiers = unpack(
+        data, (:econtype, :σᵥ², :depvar, :frontiers)
     )
+    
     σᵥ² = Panelized(
         lagdrop(broadcast(exp, σᵥ²*coeff[3]), lagparam(serialcorr))
     )
@@ -171,14 +172,14 @@ function LLT(ξ, model::SNCre, data::PanelData)
         data
     )
     dist_param = [i for i in zip(_dist_param...)]
-    dist_type = typeofdist(data)
+    dist_type = typeofdist(model)
 
-   @floop for (σᵥ²ᵢ, dist_paramᵢ, simulate_ηᵢ) in zip(σᵥ², dist_param, simulate_η)
+   @floop for i in eachindex(σᵥ², dist_param, simulate_η)
         llhᵢ = log(mean([
             Base.prod(likelihood(
-                dist_type, σᵥ²ᵢ, dist_paramᵢ..., simulate_ηᵢ[:, j]
+                dist_type, σᵥ²[i], dist_param[i]..., simulate_η[i][:, j]
             ))
-            for j in axes(simulate_ηᵢ, 2)
+            for j in axes(simulate_η[i], 2)
         ]))
         llhᵢ = !isinf(llhᵢ) ? llhᵢ : -1e10
         @reduce llh += llhᵢ

@@ -6,7 +6,9 @@ export module functionality
 export Cross, SNCre
 
 # export functionality for model construction
-export usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI
+export 
+    usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI,
+    sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency
 
 # export general distribution assumption and economic type
 export Half, half, h, Trun, trun, t, Expo, expo, e

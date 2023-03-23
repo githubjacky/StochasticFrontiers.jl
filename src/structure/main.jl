@@ -189,7 +189,7 @@ function sfmodel_fit(;spec,
     _Hessian, ξ, warmup_opt, main_opt = mle(model, data, options, startpt)
     
     # output the mle optimiazation results
-    diagonal = post_estimation(get_modeldata(model), data, _Hessian, ξ)  # diagonostic
+    diagonal = post_estimation( _Hessian, ξ)  # diagonostic
 
     # efficiency and inefficiency index
     jlms, bc = jlmsbc(ξ, model, data)
@@ -217,10 +217,7 @@ function sfmodel_fit(;spec,
         printstyled("*********************************\n\n"; color=:cyan)
     end  # end if options[:verbose]
 
-    res = (
-        ξ=ξ, model=model, data=data, options=options, jlms=jlms, bc=bc, 
-        loglikelihood=loglikelihood, 
-    )
+    res = sfresult(ξ, model, data, options, jlms, bc, loglikelihood)
 
     return res
 end

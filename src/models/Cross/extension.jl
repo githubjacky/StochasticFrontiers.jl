@@ -4,7 +4,7 @@ function jlmsbc(ξ, model::Cross, data::Data)
         model, 
         data
     )
-    jlms, bc = _jlmsbc(typeofdist(data), σᵥ², dist_param..., ϵ)
+    jlms, bc = _jlmsbc(typeofdist(model), σᵥ², dist_param..., ϵ)
    return jlms, bc
 end
 

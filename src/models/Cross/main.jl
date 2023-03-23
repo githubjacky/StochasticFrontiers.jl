@@ -1,24 +1,26 @@
 """
-   CrossData <: AbstractModelData
-
-Model Specific data which need to be check for the multicollinearity. It's not
-necessay for each model.
-"""
-struct CrossData <: AbstractModelData end
-
-
-"""
-    Cross(ψ, paramnames, data)
+    Cross(fitted_dist, ψ, paramnames)
 
 # Arguments
+- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
 - `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
 - `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
-- `data::CrossData`
 """
-struct Cross <: SFmodel
+struct Cross{T<:AbstractDist} <: SFmodel
+    fitted_dist::T
     ψ::Vector{Any}
     paramnames::Matrix{Symbol}
-    data::CrossData
+end
+
+
+# for bootstrap
+function (a::Cross)(selected_row, ::Data)
+    bootstrap_model = Cross(
+        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
+        unpack(a)[2:end]...
+    )
+
+    return bootstrap_model
 end
 
 
@@ -30,7 +32,7 @@ The model:
 # Arguments
 - `data::Union{Tuple{DataFrame}, Tuple{}}`: frame or matrix data
 - `type::Union{Type{Production}, Type{Cost}}`: type of economic interpretation
-- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: assumption of the inefficiency
+- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: distribution assumption of the inefficiency
 - `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`: 
 - `ivar::Union{Vector{<:Real}, Sumbol}`: specific data of panel model
 - `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`: dependent variable
@@ -41,7 +43,7 @@ The model:
 """
 function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers)
     # get the base vaiables
-    crossdata, _col1, _col2 = getvar(data, type, dist, σᵥ², depvar, frontiers)
+    crossdata, fitted_dist, _col1, _col2 = getvar(data, type, dist, σᵥ², depvar, frontiers)
    
     # construct remaind first column of output estimation table
     col1 = complete_template(_col1)
@@ -53,10 +55,13 @@ function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers)
     paramnames = paramname(col1, col2)
 
     # generate the remain rule for slicing parameter
-    ψ = complete_template(Ψ(crossdata))
+    ψ = complete_template(
+        Ψ(frontier(crossdata), fitted_dist, variance(crossdata)
+)
+    )
     push!(ψ, sum(ψ))
 
-    return Cross(ψ, paramnames, CrossData()), crossdata
+    return Cross(fitted_dist, ψ, paramnames, ), crossdata
 end
 
 

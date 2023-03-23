@@ -369,18 +369,18 @@ function getvar(data::Tuple,
     df = isa(data, Tuple{DataFrame}) ? data[1] : data
         
     dist_type, dist_param = _dist
-    dist = dist_type(readframe.(dist_param, df=df)...)
+    fitted_dist = dist_type(readframe.(dist_param, df=df)...)
 
     σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
 
     frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
-    dist, _ = isMultiCollinearity(dist)
+    fitted_dist, _ = isMultiCollinearity(fitted_dist)
     σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
 
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
     col2 = isa(df, DataFrame) ? paramname_col2(_frontiers, dist_param, _σᵥ²) : paramname_col2(frontiers, dist_param, σᵥ²)   # generate the parameters' names for making estimation table
 
-    return Data(type, dist, σᵥ², depvar, frontiers, size(depvar, 1)), col1, col2
+    return Data(type, σᵥ², depvar, frontiers, size(depvar, 1)), fitted_dist, col1, col2
 end
 
 function getvar(data::Tuple,
@@ -400,7 +400,7 @@ function getvar(data::Tuple,
     tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]
 
     dist_type, dist_param = _dist
-    dist = dist_type(
+    fitted_dist = dist_type(
         Panel.(
             readframe.(dist_param, df=df),
             tnum=tnum
@@ -413,13 +413,13 @@ function getvar(data::Tuple,
     )
 
     frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
-    dist, _ = isMultiCollinearity(dist)
+    fitted_dist, _ = isMultiCollinearity(fitted_dist)
     σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
 
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
     col2 = isa(df, DataFrame) ? paramname_col2(_frontiers, dist_param, _σᵥ²) : paramname_col2(frontiers, dist_param, σᵥ²)   # generate var parameters for making estimation table
 
-    return PanelData(depvar.rowidx, type, dist, σᵥ², depvar, frontiers, numberofobs(depvar)), col1, col2
+    return PanelData(depvar.rowidx, type, σᵥ², depvar, frontiers, numberofobs(depvar)), fitted_dist, col1, col2
 end
 
 
@@ -479,7 +479,7 @@ end
 
 
 """
-    Ψ(data::T) where{T<:AbstractData}
+    Ψ(frontiers, fitted_dist, σᵥ²)
 
 *primary utility function*
 
@@ -492,8 +492,7 @@ be done applying model specific method `sfspec`.*
 
 See also: [`complete_template`](@ref)
 """
-function Ψ(data::AbstractData)
-    fitted_dist, σᵥ², frontiers = unpack(data, (:fitted_dist, :σᵥ², :frontiers))
+function Ψ(frontiers, fitted_dist, σᵥ²)
     # length of 30 just for the prevention
     # notice that the type can't be assiguned(`Vector{Int}(undf, 30)` is not allowed) since we need to define elements later
     ψ = Vector(undef, 30)
@@ -551,6 +550,7 @@ numberofvar(m::AbstractVecOrMat) = size(m, 2)
 """
     numberofobs(m::AbstractMatrix{<:Real})
     numberofobs(m::AbstractVector{<:Real})
+    numberofobs(a::AbstractData)
 
 *optional utility function*
 
@@ -558,7 +558,7 @@ To calculate the number of observations.
 """
 numberofobs(m::AbstractMatrix) = size(m, 1)
 numberofobs(v::AbstractVector) = length(v)
-numberofobs(a::AbstractData) = a.nofobs
+numberofobs(a::AbstractData) = getproperty(a, :nofobs)
 
 
 

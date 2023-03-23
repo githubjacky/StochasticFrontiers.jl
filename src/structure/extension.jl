@@ -14,72 +14,6 @@ end
 
 
 """
-    resampling(data::Data, model::SFmodel; rng)
-    resampling(data::PanelData, model::SFmodel; rng)
-
-Bootstrap Sampling with replacement
-"""
-function resampling(data::Data, model=nothing; rng)
-    if rng != -1
-        selected_row = sample(rng, 1:data.nofobs, data.nofobs; replace=true)
-    else
-        selected_row = sample(1:data.nofobs, data.nofobs; replace=true)
-    end
-    bootstrap_data = Data(
-        data.econtype,
-        typeofdist(data)([i[selected_row, :] for i in unpack(distof(data))]...),
-        data.σᵥ²[selected_row, :],
-        data.depvar[selected_row, :],
-        data.frontiers[selected_row, :],
-        data.nofobs
-    )
-
-    if model !== nothing
-        model_field = unpack(model)
-        bootstrap_model = typeof(model)(
-            model_field[:end-1]...,
-            typeof(model_field[end])(model_field[end][selected_row, :])
-        )
-        return bootstrap_data, bootstrap_model
-    else
-        return bootstrap_data
-    end
-end
-
-
-function resampling(data::PanelData, model=nothing; rng)
-    if rng != -1
-        selected_row = sample(rng, 1:data.nofobs, data.nofobs; replace=true)
-    else
-        selected_row = sample(1:data.nofobs, data.nofobs; replace=true)
-    end
-    bootstrap_data = Data(
-        data.type,
-        typeofdist(data)(
-            [Panel(i[selected_row, :], i.rowidx) for i in unpack(distof(data))]...
-        ),
-        Panel(data.σᵥ²[selected_row, :], data.σᵥ².rowidx),
-        Panel(data.depvar[selected_row, :], data.depvar.rowidx),
-        Panel(data.frontiers[selected_row, :], data.frontiers.rowidx),
-        data.nofobs
-    )
-
-    if model !== nothing
-        model_field = unpack(model)
-        bootstrap_model = typeof(model)(
-            model_field[:end-1]...,
-            typeof(model_field[end])(
-                Panel(model_field[end][selected_row, :], model_field[end].rowidx)
-            )
-        )
-        return bootstrap_data, bootstrap_model
-    else
-        return bootstrap_data
-    end
-end
-
-
-"""
     sfCI(; bootdata=nothing, observed=nothing, level=0.5, verbose=false)
 
 Calculate the confidence interval of observed mean marginal effect through bootstrap.
@@ -133,7 +67,7 @@ Main method for bootstrap marginal effect
 - 
 """
 function bootstrap_marginaleffect(
-    result::NamedTuple;
+    result::sfresult;
     mymisc=nothing,
     R::Int=500, 
     level=0.05,
@@ -150,24 +84,28 @@ function bootstrap_marginaleffect(
     (seed == -1) || ( seed > 0) || throw("`seed` needs to be a positive integer.")
     (iter == -1) || ( iter > 0) || throw("`iter` needs to be a positive integer.")
     (R > 0) || throw("`R` needs to be a positive integer.")
-    iter > 0 && (result.options[:main_maxit] = iter)
 
-    _, obs_marg_mean = marginaleffect(result.ξ, result.model, result.data)
+    maximizer, model, data, options = unpack(result, (:ξ, :model, :data, :options))
+    iter > 0 && (options[:main_maxit] = iter)
+
+    _, obs_marg_mean = marginaleffect(maximizer, model, data)
     rng = seed != -1 ? MersenneTwister(seed) : -1
-    result.options[:warmstart_solver] = nothing
+    options[:warmstart_solver] = nothing
     p = Progress(R, desc="Sampling: ", color=:white, barlen=30)
 
     printstyled(" * bootstrap marginanl effect\n\n", color=:yellow)
     sim_res = Matrix{Real}(undef, R, length(obs_marg_mean))
     @inbounds for i in 1:R
         @label start1
-        if fieldcount(typeof(result.model.data)) == 0
-            bootstrap_data, bootstrap_model = resampling(result.data; rng=rng), result.model
+        if rng != -1
+            selected_row = sample(rng, 1:numberofobs(data), numberofobs(data); replace=true)
         else
-            bootstrap_data, bootstrap_model = resampling(result.data, result.model; rng=rng)
+            selected_row = sample(1:numberofobs(data), numberofobs(data); replace=true)
         end
+        bootstrap_data = data(selected_row)
+        bootstrap_model = model(selected_row, bootstrap_data)
         
-        Hessian, ξ, _, main_opt = mle(bootstrap_model, bootstrap_data, result.options, result.ξ)
+        Hessian, ξ, _, main_opt = mle(bootstrap_model, bootstrap_data, options, maximizer)
         if Optim.iteration_limit_reached(main_opt) || 
            isnan(Optim.g_residual(main_opt)) ||  
            Optim.g_residual(main_opt) > 1e-1

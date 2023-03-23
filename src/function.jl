@@ -67,7 +67,7 @@ The likelihood function of half normal, truncated normal and exponential distrib
 """
 function likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     res = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², σᵤ², ϵ)
+    for i in eachindex(σᵥ², σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σ = sqrt(σ²)
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
@@ -80,7 +80,7 @@ end
 
 function likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     res = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
@@ -93,13 +93,14 @@ end
 
 function likelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
     res = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², λ², ϵ)
+    for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         res[i] = expopdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
     end
 
     return res
+
 end
 
 """
@@ -117,39 +118,39 @@ The log likelihood function of half normal, truncated normal and exponential dis
 - `ϵ::Vector{<:Real}`: conposite error term
 """
 function loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
-    res = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², σᵤ², ϵ)
+    @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
-        res[i] = halflogpdf(σ², ϵ[i], μₛ, σₛ²)
+        llhᵢ = halflogpdf(σ², ϵ[i], μₛ, σₛ²)
+        @reduce llh += llhᵢ
     end
 
     return res
 end
 
-function loglikelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
-    res = similar(ϵ)
+function loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
     @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
         μₛ  = (σᵥ²[i] * μ[i] - σᵤ²[i] * ϵ[i]) / σ²
-        res[i] = trunlogpdf(σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
+        llhᵢ = trunlogpdf(σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
+        @reduce llh += llhᵢ
     end
     
-    return res
+    return llh
 end
 
 function loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
-    res = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², λ², ϵ)
+    @floop for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
-        res[i] = expologpdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
+        llhᵢ = expologpdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
+        @reduce llh += llhᵢ
     end
 
-    return res
+    return llh
 end
 
 
@@ -171,7 +172,7 @@ half normal, normal, exponential
 function _jlmsbc(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², σᵤ², ϵ)
+    @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -185,7 +186,7 @@ end
 function _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (σᵥ²[i]*μ[i] - σᵤ²[i]*ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -199,11 +200,11 @@ end
 function _jlmsbc(::Type{Expo{T}}, σᵥ², λ, ϵ) where T
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @tturbo warn_check_args=false for i in eachindex(σᵥ², λ, ϵ)
+    @floop for i in eachindex(σᵥ², λ, ϵ)
         σᵥ = sqrt(σᵥ²[i])
         μₛ  = (-ϵ[i]) - (σᵥ²[i]/λ[i])
-        jlms = (σᵥ*normpdf(μₛ/σᵥ)) / normcdf(μₛ/σᵥ) + μₛ
-        bc = exp(-μₛ+0.5*σᵥ²[i]) .* (normcdf((μₛ/σᵥ)-σᵥ) / normcdf(μₛ/σᵥ))
+        jlms[i] = (σᵥ*normpdf(μₛ/σᵥ)) / normcdf(μₛ/σᵥ) + μₛ
+        bc[i] = exp(-μₛ+0.5*σᵥ²[i]) .* (normcdf((μₛ/σᵥ)-σᵥ) / normcdf(μₛ/σᵥ))
     end
     
     return jlms, bc
@@ -288,21 +289,22 @@ end
 *Warning: this method only create the base template, further completion should
 be done.*
 """
-function _marginaleffect(ξ, struc, data, bootstrap)
+function _marginaleffect(ξ, model, data, bootstrap)
     # prepare the distribution data
-    dist_data = unpack(distof(data))
+    dist_data = unpack(distof(model))
     var_nums = [numberofvar(i) for i in dist_data]
     var_num = sum(var_nums)
 
     
-    dist_coef = slice(ξ, struc.ψ, mle=true)[2]
+    dist_coef = slice(ξ, model.ψ, mle=true)[2]
     # the purpose of `let` is to avoid boxed variables required by the `@floop`
     dist_data = hcat(dist_data...)
+    dist_type = typeofdist(model)
     mm = Matrix{Float64}(undef, numberofobs(dist_data), var_num)
     for i = axes(mm, 1)
         @inbounds mm[i, :] = gradient(
             marg -> uncondU(
-                typeofdist(data),
+                dist_type,
                 [reshape(j, 1, length(j)) for j in slice(marg, var_nums)]...,
                 dist_coef
             ),
@@ -312,7 +314,7 @@ function _marginaleffect(ξ, struc, data, bootstrap)
 
     beg_label = numberofvar(data.frontiers) + 1
     en_label = beg_label + sum(var_nums) - 1
-    label = struc.paramnames[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
+    label = model.paramnames[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
     mm, label = clean_marginaleffect(mm, label)  # drop the duplicated and constant columns
     mean_marginal = mean(mm, dims=1)
     if bootstrap

@@ -1,28 +1,41 @@
 """
-   PFEWHData(Ỹ::PanelMatrix{<:Real}, X̃::PanelMatrix{<:Real}, hscale::PanelMatrix{<:Real}) <: AbstractModelData
+    PFEWH(fitted_dist, Ỹ, X̃, hscale, ψ, paramnames)
 
-Model Specific data which need to be check for the multicollinearity. It's not
-necessay for each model.
+# Arguments
+- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
+-  `Ỹ::PanelMatrix{<:Real}`: demean of the dependent variable
+- `X̃::PanelMatrix{<:Real}`: demean of the explanatory variables
+- `hscale::PanelMatrix{<:Real}`: scaling property
+- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
+- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
 """
-struct PFEWHData{T<:PanelMatrix, S<:PanelMatrix, U<:PanelMatrix} <: AbstractModelData 
-    Ỹ::T
-    X̃::S
-    hscale::U
+struct PFEWH{T<:AbstractDist, 
+             S<:PanelMatrix,
+             U<:PanelMatrix,
+             V<:PanelMatrix
+             } <: PanelModel
+    fitted_dist::T
+    Ỹ::S
+    X̃::U
+    hscale::V
+    ψ::Vector{Any}
+    paramnames::Matrix{Symbol}
 end
 
 
-"""
-    PFEWH(ψ, paramnames, data)
+# for bootstrap
+function (a::PFEWH)(selected_row, paneldata)
+    rowidx, depvar, frontiers = unpack(paneldata, (:rowidx, :depvar, :frontiers))
+    bootstrap_model = PFEWH(
+        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
+        sf_demean(depvar),
+        sf_demean(frontiers),
+        Panel(a.hscale[selected_row, :], rowidx),
+        get_paramlength(a),
+        get_paramname(a)
+    )
 
-# Arguments
-- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
-- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
-- `data::SNCreData`
-"""
-struct PFEWH{T<:PFEWHData} <: PanelModel
-    ψ::Vector{Any}
-    paramnames::Matrix{Symbol}
-    data::T
+    return bootstrap_model
 end
 
 
@@ -43,12 +56,14 @@ The model:
 """
 function sfspec(::Type{PFEWH}, data...; type, dist, σᵥ², ivar, depvar, frontiers, hscale)
     # get the base vaiables
-    paneldata, _col1, _col2 = getvar(data, type, ivar, dist, σᵥ², depvar, frontiers)
+    paneldata, fitted_dist, _col1, _col2 = getvar(data, type, ivar, dist, σᵥ², depvar, frontiers)
 
     # get hscale and demean data 
-    hscale_ = Panel(readframe(hscale, df=df), get_rowidx(paneldata))
+    h = Panel(readframe(hscale, df=df), get_rowidx(paneldata))
+    h, _ = isMultiCollinearity(:hscale, h)
+
     Ỹ, X̃ = sf_demean(dependentvar(paneldata)), sf_demean(frontier(paneldata))
-    hscale_, _ = isMultiCollinearity(:hscale, hscale_)
+    
    
     # construct remaind first column of output estimation table
     _col1[1] = Symbol(:demean, _col1[1])
@@ -61,10 +76,13 @@ function sfspec(::Type{PFEWH}, data...; type, dist, σᵥ², ivar, depvar, front
     paramnames = paramname(col1, col2)
 
     # generate the remain rule for slicing parameter
-    ψ = complete_template(Ψ(paneldata), numberofvar(hscale_))
+    ψ = complete_template(
+        Ψ(frontier(paneldata), fitted_dist, variance(paneldata)), 
+        numberofvar(hscale_)
+    )
     push!(ψ, sum(ψ))
 
-    return PFEWH(ψ, paramnames, PFEWHData(Ỹ, X̃, hscale_)), paneldata
+    return PFEWH(fitted_dist, ψ, paramnames, PFEWHData(Ỹ, X̃, h)), paneldata
 end
 
 

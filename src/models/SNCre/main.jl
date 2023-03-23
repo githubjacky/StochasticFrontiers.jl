@@ -19,41 +19,44 @@ lagparam(a::ARMA) = getproperty(a, :p) + getproperty(a, :q)
 lagparam(a::PanelModel) = lagparam(get_serialcorr(a))
 
 
-"""
-   SNCreData <: AbstractModelData
-
-Model Specific data which need to be check for the multicollinearity. It's not
-necessay for each model.
-"""
-struct SNCreData <: AbstractModelData end  # initial a empty model specifc data type
-
 
 """
-    SNCre(SCE, R, σₑ², xmean, ψ, paramnames, data)
+    SNCre(fitted_dist, ψ, paramnames, serialcorr, R, σₑ², xmean)
 
 # Arguments
+- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
+- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
+- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
 - `SCE::AbstractSerialCorr`: serial correlation
 - `R::Int`: number of simulation of error of controled random effect `e`
 - `σₑ²::Real`: vaiance of the `e`
 - `xmean::PanelMatrix`: explanatory variables of the controled random effect
-- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
-- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
-- `data::SNCreData`
 """
-struct SNCre{T<:AbstractSerialCorr,
-             S<:Real,
-             U<:PanelMatrix,
+struct SNCre{T<:AbstractDist,
+             S<:AbstractSerialCorr,
+             U<:Real,
+             V<:PanelMatrix,
             } <: PanelModel
-    serialcorr::T
-    R::Int
-    σₑ²::S
-    xmean::U
+    fitted_dist::T
     ψ::Vector{Any}
     paramnames::Matrix{Symbol}
-    data::SNCreData
+    serialcorr::S
+    R::Int
+    σₑ²::U
+    xmean::V
 end
 
 get_R(a::SNCre) = getproperty(a, :R)
+
+# for bootstrap
+function (a::SNCre)(selected_row, ::PanelData)
+    bootstrap_model = SNCre(
+        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
+        unpack(a)[2:end]...
+    )
+
+    return bootstrap_model
+end
 
 
 """
@@ -132,7 +135,7 @@ The model:
 """
 function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ²)
     # get the base variables and set up σₑ²
-    paneldata, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
+    paneldata, fitted_dist, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
     @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
     
     # generate the mean data of frontiers for the specification of correlated random effect
@@ -163,10 +166,15 @@ function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, front
 
     # generate the remain rule for slicing parameter
     # generate the length of serially correlated error terms, σₑ² and correlated random effects
-    ψ = complete_template(Ψ(paneldata), numberofvar(xmean), 1, lagparam(serialcorr))
+    ψ = complete_template(
+        Ψ(frontier(paneldata), fitted_dist, variance(paneldata)), 
+        numberofvar(xmean), 
+        1, 
+        lagparam(serialcorr)
+    )
     push!(ψ, sum(ψ))
 
-    return SNCre(serialcorr, R, σₑ², xmean, ψ, paramnames, SNCreData()), paneldata
+    return SNCre(fitted_dist, ψ, paramnames, serialcorr, R, σₑ², xmean), paneldata
 end
 
 

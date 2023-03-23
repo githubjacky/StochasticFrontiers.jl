@@ -49,7 +49,7 @@ function jlmsbc(ξ, model::SNCre, data::PanelData)
     η = check_idgood(simulate_η)
 
     jlms, bc = _jlmsbc(
-        typeofdist(data), Panel(σᵥ²), [Panel(i) for i in dist_param]..., η
+        typeofdist(model), Panel(σᵥ²), [Panel(i) for i in dist_param]..., η
     )
    return jlms, bc
 end

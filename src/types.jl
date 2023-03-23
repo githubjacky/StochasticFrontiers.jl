@@ -21,11 +21,13 @@ const SFmodel = AbstractSFmodel
 abstract type AbstractPanelModel <: AbstractSFmodel end
 const PanelModel = AbstractPanelModel
 
-get_paramlength(a::AbstractSFmodel) = getproperty(a, :ψ)
-get_paramname(a::AbstractSFmodel) = getproperty(a, :paramnames)
-get_modeldata(a::AbstractSFmodel) = getproperty(a, :data)
+distof(a::SFmodel) = getproperty(a, :fitted_dist)
+typeofdist(a::SFmodel) = typeof(getproperty(a, :fitted_dist))
 
-numberofparam(a::AbstractSFmodel) = get_paramlength(a)[end]
+get_paramlength(a::SFmodel) = getproperty(a, :ψ)
+get_paramname(a::SFmodel) = getproperty(a, :paramnames)
+
+numberofparam(a::SFmodel) = get_paramlength(a)[end]
 
 
 # economic interpredation
@@ -477,7 +479,7 @@ const expo = Expo
 
 # inner product of the data and coefficients
 function (s::Expo)(x::Vector)
-    return  (broadcast(exp, lambda(s) * x),)
+    return  (broadcast(exp, s.λ * x),)
 end
 
 
@@ -486,12 +488,10 @@ abstract type AbstractData end
 
 # This type is for the usage of `AbstractSFmodel`
 struct Data{T<:DataType,
-            S<:AbstractDist,
             U<:AbstractMatrix,
             V<:AbstractMatrix,
             W<:AbstractMatrix} <: AbstractData
     econtype::T
-    fitted_dist::S
     σᵥ²::U
     depvar::V
     frontiers::W
@@ -501,33 +501,71 @@ end
 
 # This type is for the usage of `AbstractPanelModel`.
 struct PanelData{T<:DataType,
-                 S<:AbstractDist,
                  U<:PanelMatrix,
                  V<:PanelMatrix,
                  W<:PanelMatrix
                 } <: AbstractData
     rowidx::Vector{UnitRange{Int}}
     econtype::T
-    fitted_dist::S
     σᵥ²::U
     depvar::V
     frontiers::W
     nofobs::Integer
 end
 
-"""
-Some utility function
-"""
-distof(a::AbstractData) = getproperty(a, :fitted_dist)
-typeofdist(a::AbstractData) = typeof(getproperty(a, :fitted_dist))
-
+# Some utility function
+get_rowidx(a::PanelData) = getproperty(a, :rowidx)
+variance(a::AbstractData) = getproperty(a, :σᵥ²)
 dependentvar(a::AbstractData) = getproperty(a, :depvar)
 frontier(a::AbstractData) = getproperty(a, :frontiers)
 
-get_rowidx(a::PanelData) = getproperty(a, :rowidx)
 numberofi(a::PanelData) = length(getproperty(a, :rowidx))
 numberoft(a::PanelData) = length.(getproperty(a, :rowidx))
 
+# for bootstrap
+function (a::Data)(selected_row)
+    econtype, σᵥ², depvar, frontiers, nofobs = unpack(a)
+    bootstrap_data = Data(
+        econtype,
+        σᵥ²[selected_row, :],
+        depvar[selected_row, :],
+        frontiers[selected_row, :],
+        nofobs
+    )
+    return bootstrap_data
+end
 
-# Store the model-specific data type but not necessary for all AbstractSFmodel
-abstract type AbstractModelData end
+function (a::PanelData)(selected_row)
+    rowidx, econtype, σᵥ², depvar, frontiers, nofobs = unpack(a)
+    bootstrap_data = PanelData(
+        rowidx,
+        econtype,
+        Panel(σᵥ²[selected_row, :], rowidx),
+        Panel(depvar[selected_row, :], rowidx),
+        Panel(frontiers[selected_row, :], rowidx),
+        nofobs
+    )
+    return bootstrap_data
+end
+
+
+# output the estimation result
+struct sfresult{T, S}
+    ξ::Vector{Float64}
+    model::T
+    data::S
+    options::OrderedDict{Symbol, Any}
+    jlms::Vector{Float64}
+    bc::Vector{Float64}
+    loglikelihood::Float64
+end
+
+
+# API
+sfmaximizer(a::sfresult) = getproperty(a, :ξ)
+sfmodel(a::sfresult) = getproperty(a, :model)
+sfdata(a::sfresult) = getproperty(a, :data)
+sfoptions(a::sfresult) = getproperty(a, :options)
+sf_inefficiency(a::sfresult) = getproperty(a, :jlms)
+sf_efficiency(a::sfresult) = getproperty(a, :bc)
+sfmaximum(a::sfresult) = getproperty(a, :loglikelihood)

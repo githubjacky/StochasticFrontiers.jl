@@ -117,7 +117,7 @@ The purpose of the post estimation procesis to check the more rigorous converge 
 - `_Hessian::NLSolversBase.TwiceDifferentiable{T} where T`: required by the optimiazation
 - `_coevec::Vector{<:Real}`: maximum likelihood estimator
 """
-function post_estimation(model_data, data, _Hessinan, _coevec)
+function post_estimation(_Hessinan, _coevec)
     numerical_hessian = hessian!(_Hessinan, _coevec)
     var_cov_matrix = try  # check if the matrix is invertible
         inv(numerical_hessian)
