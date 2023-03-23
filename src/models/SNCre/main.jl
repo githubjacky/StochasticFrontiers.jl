@@ -131,7 +131,7 @@ The model:
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
 """
 function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ²)
-    # get the variables and set up σₑ²
+    # get the base variables and set up σₑ²
     paneldata, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
     @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
     
@@ -140,7 +140,7 @@ function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, front
     
     # construct remaind first column of output estimation table
     corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))
-    col1 = complete_template(_col1, [:αᵢ, :log_σₑ², corrcol1...])
+    col1 = complete_template(_col1, :αᵢ, :log_σₑ², corrcol1...)
 
     # construct remaind second column of output estimation tabel
     if !isa(serialcorr, ARMA)
@@ -156,14 +156,14 @@ function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, front
     xmean_col2 = [Symbol(:mean_, i) for i in _col2[1]]
     push!(xmean_col2, :_cons)
     xmean_col2 = xmean_col2[pivots]
-    col2 = complete_template(_col2, [xmean_col2, [:_cons], corrcol2...])
+    col2 = complete_template(_col2, xmean_col2, [:_cons], corrcol2...)
 
     # costruct the names of parameters of the output estimation table
     paramnames = paramname(col1, col2)
 
     # generate the remain rule for slicing parameter
     # generate the length of serially correlated error terms, σₑ² and correlated random effects
-    ψ = complete_template(Ψ(paneldata), [numberofvar(xmean), 1, lagparam(serialcorr)])
+    ψ = complete_template(Ψ(paneldata), numberofvar(xmean), 1, lagparam(serialcorr))
     push!(ψ, sum(ψ))
 
     return SNCre(serialcorr, R, σₑ², xmean, ψ, paramnames, SNCreData()), paneldata

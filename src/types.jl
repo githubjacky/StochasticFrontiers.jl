@@ -238,14 +238,8 @@ julia> sf_demean(data)
  -2.5   0.0
 ```
 """
-function sf_demean(data::Panelized{Vector{Vector{T}}}) where T
-    means = mean.(data)
-    transformed = [data[i] .- means[i] for i in eachindex(data, means)]
-    panel_data = Panel(reduce(vcat, transformed), data.rowidx)
 
-    return panel_data
-end
-function sf_demean(data::Panelized{Vector{Matrix{T}}}) where T
+function sf_demean(data::Panelized)
     means = mean.(data, dims=1)
     transformed = [data[i] .- means[i] for i in eachindex(data, means)]
     panel_data = Panel(reduce(vcat, transformed), data.rowidx)
@@ -512,6 +506,7 @@ struct PanelData{T<:DataType,
                  V<:PanelMatrix,
                  W<:PanelMatrix
                 } <: AbstractData
+    rowidx::Vector{UnitRange{Int}}
     econtype::T
     fitted_dist::S
     σᵥ²::U
@@ -521,7 +516,7 @@ struct PanelData{T<:DataType,
 end
 
 """
-Get `dist` of `AbstractData`
+Some utility function
 """
 distof(a::AbstractData) = getproperty(a, :fitted_dist)
 typeofdist(a::AbstractData) = typeof(getproperty(a, :fitted_dist))
@@ -529,9 +524,9 @@ typeofdist(a::AbstractData) = typeof(getproperty(a, :fitted_dist))
 dependentvar(a::AbstractData) = getproperty(a, :depvar)
 frontier(a::AbstractData) = getproperty(a, :frontiers)
 
-
-numberofi(a::PanelData) = numberofi(getproperty(a, :depvar))
-numberoft(a::PanelData) = numberoft(getproperty(a, :depvar))
+get_rowidx(a::PanelData) = getproperty(a, :rowidx)
+numberofi(a::PanelData) = length(getproperty(a, :rowidx))
+numberoft(a::PanelData) = length.(getproperty(a, :rowidx))
 
 
 # Store the model-specific data type but not necessary for all AbstractSFmodel

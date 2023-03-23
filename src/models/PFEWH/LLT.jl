@@ -1,4 +1,4 @@
-function composite_error(coeff, model::Cross, data)
+function composite_error(coeff, model::PFEWH, data)
     econtype, fitted_dist, _σᵥ², depvar, frontiers = unpack(
         data, (:econtype, :fitted_dist, :σᵥ², :depvar, :frontiers)
     )
@@ -10,7 +10,7 @@ function composite_error(coeff, model::Cross, data)
 end
 
 
-function LLT(ξ, model::Cross, data::Data)
+function LLT(ξ, model::PFEWH, data::Data)
     ϵ, σᵥ², dist_param = composite_error(
         slice(ξ, get_paramlength(model), mle=true), 
         model, 

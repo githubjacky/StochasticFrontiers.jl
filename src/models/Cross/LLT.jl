@@ -1,4 +1,4 @@
-function composite_error(coeff, model::Cross, data)
+function composite_error(coeff, ::Cross, data)
     econtype, fitted_dist, _σᵥ², depvar, frontiers = unpack(
         data, (:econtype, :fitted_dist, :σᵥ², :depvar, :frontiers)
     )

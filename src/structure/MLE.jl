@@ -122,28 +122,10 @@ function post_estimation(model_data, data, _Hessinan, _coevec)
     var_cov_matrix = try  # check if the matrix is invertible
         inv(numerical_hessian)
     catch
-        _ = isMultiCollinearity.(
-            [:frontiers, fieldnames(typeof(data.dist))..., :σᵥ²], 
-            [data.frontiers, unpack(data.dist)..., data.σᵥ²]
-        )
-        if fieldcount(typeof(model_data)) != 0
-            _ = isMultiCollinearity.(
-                fieldnames(typeof(model_data)), unpack(model_data)
-            )
-        end
         throw("The Hessian matrix is not invertible, indicating the model does not converge properly. The estimation is abort.")
     end
     diagonal = diag(var_cov_matrix)
     if !all(diagonal .> 0)
-        _ = isMultiCollinearity.(
-            [:frontiers, fieldnames(typeofdist(data))..., :σᵥ²],
-            [data.frontiers, unpack(data.fitted_dist)..., data.σᵥ²]
-        )
-        if fieldcount(typeof(model_data)) != 0 
-            _ = isMultiCollinearity.(
-                fieldnames(typeof(model_data)), unpack(model_data)
-            )
-        end
         throw("Some of the diagonal elements of the var-cov matrix are non-positive, indicating problems in the convergence. The estimatIon is abort.")
     end
     return diagonal

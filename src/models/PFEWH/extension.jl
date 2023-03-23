@@ -1,4 +1,4 @@
-function jlmsbc(ξ, model::Cross, data::Data)
+function jlmsbc(ξ, model::PFEWH, data::Data)
     ϵ, σᵥ², dist_param = composite_error(
         slice(ξ, get_paramlength(model), mle=true),
         model, 
@@ -8,4 +8,4 @@ function jlmsbc(ξ, model::Cross, data::Data)
    return jlms, bc
 end
 
-marginaleffect(ξ, model::Cross, data, bootstrap=false) = _marginaleffect(ξ, model, data, bootstrap)
+marginaleffect(ξ, model::PFEWH, data, bootstrap=false) = _marginaleffect(ξ, model, data, bootstrap)

@@ -138,6 +138,38 @@ end
 
 
 """
+    create_names(label::Symbol, a::AbstractMatrix{<:Real})
+    create_names(a::Tuple{Vararg{Symbol}})
+    create_names(a::Symbol)
+
+utility function to create the second column of the output estimation table with Esample
+
+# Examples
+```juliadoctest
+julia> a = (:b, :c, :d); create_names(a)
+3-element Vector{Symbol}:
+ :b
+ :c
+ :d
+
+julia> a = rand(2, 3); create_names(:x, a)
+3-element Vector{Symbol}:
+ :x1
+ :x2
+ :x3
+```
+
+julia> a = :x; create_names(a)
+1-element Vector{Symbol}:
+ :x
+"""
+create_names(label::Symbol, a::AbstractMatrix) = [Symbol(label, i) for i=axes(a, 2)]
+create_names(a::Tuple) = convert(Vector, a)
+create_names(a::Symbol) = [a]
+
+
+
+"""
     paramname_col2(frontiers::Tuple, dist_props,::Tuple{Vararg{Symbol}} σᵥ²::Union{Symbol, Tuple{Vararg{Symbol}}})
     paramname_col2(frontiers::Matrix{<:Real}, dist_props::Tuple{Vararg{Matrix{<:Real}}}, σᵥ²::Matrix{<:Real})
 
@@ -186,7 +218,7 @@ function paramname_col2(frontiers::Tuple, dist_props::Tuple, σᵥ²::Union{Symb
     col2 = Vector{Vector{Symbol}}(undef, 50)
     en = length(dist_props) + 2
     col2[1:en] = [
-        convert(Vector, frontiers), convert.(Vector, dist_props)..., convert(Vector, σᵥ²)
+        create_names(frontiers), create_names.(dist_props)..., create_names(σᵥ²)
     ]
     return col2
 end
@@ -194,19 +226,19 @@ end
 function paramname_col2(frontiers::AbstractMatrix, dist_props::Tuple, σᵥ²::AbstractArray)
     col2 = Vector{Vector{Symbol}}(undef, 50)
     en = length(dist_props) + 2
-    col2[begin] = [Symbol(:frontiers, i) for i=axes(frontiers, 2)]
+    col2[begin] = create_names(:frontiers, frontiers)
     for i = eachindex(dist_props)
         if numberofvar(dist_props[i]) == 1
             col2[begin+i] = [:_cons]
         else
-            col2[begin+i] = [Symbol(:exogenous, j) for j=axes(dist_props[i], 2)]
+            col2[begin+i] = create_names(:exogenous, dist_props[i])
             col2[begin+i][end] = :_cons
         end
     end
     if numberofvar(σᵥ²) == 1
         col2[en] = [:_cons]
     else
-        col2[en] = [Symbol(:exogenous, i) for i=axes(σᵥ², 2)]
+        col2[en] = create_names(:exogenous, σᵥ²)
         col2[en][end] = :_cons
     end
 
@@ -223,11 +255,11 @@ Complete the template `base` with `add`
 
 See also: [`paramname_col1`](@ref), [`paramname_col2`](@ref), [`ψ`](@ref)
 """
-function complete_template(base, add)
+function complete_template(base, add...)
     beg = findfirst(i->!isassigned(base, i), 1:length(base))
     length(add) == 0 && (return base[begin:beg-1])
     en = beg + length(add) - 1
-    base[beg:en] = add
+    base[beg:en] .= add
     return base[begin:en]
 end
 
@@ -341,6 +373,10 @@ function getvar(data::Tuple,
 
     σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
 
+    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
+    dist, _ = isMultiCollinearity(dist)
+    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
+
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
     col2 = isa(df, DataFrame) ? paramname_col2(_frontiers, dist_param, _σᵥ²) : paramname_col2(frontiers, dist_param, σᵥ²)   # generate the parameters' names for making estimation table
 
@@ -376,10 +412,14 @@ function getvar(data::Tuple,
         tnum=tnum
     )
 
+    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
+    dist, _ = isMultiCollinearity(dist)
+    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
+
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
     col2 = isa(df, DataFrame) ? paramname_col2(_frontiers, dist_param, _σᵥ²) : paramname_col2(frontiers, dist_param, σᵥ²)   # generate var parameters for making estimation table
 
-    return PanelData(type, dist, σᵥ², depvar, frontiers, numberofobs(depvar)), col1, col2
+    return PanelData(depvar.rowidx, type, dist, σᵥ², depvar, frontiers, numberofobs(depvar)), col1, col2
 end
 
 
@@ -424,6 +464,17 @@ end
 function isMultiCollinearity(name::Symbol, _themat::AbstractPanel)
     themat, pivots = isMultiCollinearity(name , _themat.data)
     return Panel(themat, _themat.rowidx), pivots
+end
+
+function isMultiCollinearity(_d::AbstractDist)
+    name = fieldnames(typeof(_d))
+    _themat = unpack(_d)
+
+    res = isMultiCollinearity.(name, _themat)
+    themat, pivots = zip(res...)
+    d = typeof(_d)(themat...)
+
+    return d, pivots
 end
 
 

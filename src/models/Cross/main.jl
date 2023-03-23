@@ -40,27 +40,27 @@ The model:
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
 """
 function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers)
-    # get the vaiables
+    # get the base vaiables
     crossdata, _col1, _col2 = getvar(data, type, dist, σᵥ², depvar, frontiers)
    
     # construct remaind first column of output estimation table
-    col1 = complete_template(_col1, ())
+    col1 = complete_template(_col1)
 
     # construct remaind second column of output estimation tabel
-    col2 = complete_template(_col2, ())
+    col2 = complete_template(_col2)
 
     # costruct the names of parameters of the output estimation table
     paramnames = paramname(col1, col2)
 
     # generate the remain rule for slicing parameter
-    ψ = complete_template(Ψ(crossdata), ())
+    ψ = complete_template(Ψ(crossdata))
     push!(ψ, sum(ψ))
 
     return Cross(ψ, paramnames, CrossData()), crossdata
 end
 
 
-function modelinfo(Cross)
+function modelinfo(::Cross)
     modelinfo1 = "Base stochastic frontier model"
     
     modelinfo2 =
