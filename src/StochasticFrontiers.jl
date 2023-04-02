@@ -2,29 +2,20 @@ module StochasticFrontiers
 """
 export module functionality
 """
-# export model
-export Cross, SNCre
 
 # export functionality for model construction
 export 
-    usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI,
-    sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency
-
+    usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI, plot_inefficieny,
+    sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency, sfmaximum
 # export general distribution assumption and economic type
 export Half, half, h, Trun, trun, t, Expo, expo, e
-export Prod, prod, p, Cost, cost
 
 # export model specific data type
 export AR, MA, ARMA  # SNCre
 
-# export package-Optim's algorithms
-export NelderMead, SimulatedAnnealing, SAMIN, ParticleSwarm,
-       ConjugateGradient, GradientDescent, BFGS, LBFGS,
-       Newton, NewtonTrustRegion, IPNewton
-
 
 # used packages reference
-using Distributions, Random, Statistics, LinearAlgebra, Optim
+using Distributions, Random, Statistics, LinearAlgebra, Optim, Plots
 import DataFrames: DataFrame
 import CSV: File
 import DataStructures: OrderedDict

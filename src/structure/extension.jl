@@ -1,16 +1,100 @@
 """
-    sfmarginal(result::NamedTuple; bootstrap=false, kwargs...)
+    plot_inefficieny(res::sfresult)
 
-The primary interface for usage, and the main input is the output `result`
-from the mle estimation.
+Plot the inefficiency and efficiency index
 """
-function sfmarginal(result; bootstrap=false, kwargs...)
-    if !bootstrap
-        marginaleffect(result.ξ, result.model, result.data, bootstrap)
-    else
-        bootstrap_marginaleffect(result; kwargs...)
-    end
+function plot_inefficieny(res::sfresult)
+    plot(
+        histogram(sf_inefficiency(res), xlabel="JLMS", bins=100, label=""),
+        histogram(sf_efficiency(res), xlabel="BC", bins=50, label=""),
+        layout = (1,2), legend=false
+    )
 end
+
+
+"""
+    _marg_data(model::SFmodel)
+
+This is the template of getting the marginal effect data and also the number of 
+variables for each component
+"""
+function _marg_data(model::SFmodel, args...)
+    _data = [
+        unpack(distof(model))...,
+        [getproperty(model, i) for i in args]...
+    ]
+    var_nums = [numberofvar(i) for i in _data]
+    data = reduce(hcat, _data)
+
+    return data, var_nums
+end
+
+
+"""
+    clean_marginaleffect(m::Matrix{<:Any}, labels::Vector{Symbol})
+
+To drop the constant and duplicated marginal effect
+"""
+function clean_marginaleffect(m, labels)
+    unique_label = unique(labels)
+    pos = Dict([(i, findall(x->x==i, labels)) for i in unique_label])
+    id = Dict([(i, pos[i][1]) for i in unique_label])
+    count = Dict([(i, length(pos[i])) for i in unique_label])
+    drop = []
+    @inbounds for (i, label) in enumerate(labels)
+        # task1: drop the constant columns
+        if length(unique(m[:, i])) == 1
+            append!(drop, i)
+            count[label] -= 1
+            if i == id[label] && count[label] != 0
+                id[label] = pos[label][1+(length(pos[label])-count[label])]
+            end
+            continue
+        end
+        # task2: drop the columns with duplicated column names
+        if i != id[label]
+            tar = id[label]
+            m[:, tar] = m[:, tar] + m[:, i]
+            append!(drop, i)
+            count[label] -= 1
+        end
+    end
+    length(labels) == length(drop) && error("there is no marginal effect")
+
+    return m[:, Not(drop)], unique_label
+end
+
+
+"""
+    marginaleffect(ξ::Vector{<:Real}, model::SFmodel, data::AbstractData)
+
+Calculate the marginal effect of the unconditional mean in an individual level
+"""
+function marginaleffect(ξ, model, data)
+    marg_data, var_nums = marginal_data(model)
+    var_num = sum(var_nums)
+
+    beg_label = numberofvar(frontier(data)) + 1
+    en_label = beg_label + var_num - 1
+    label = get_paramname(model)[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
+
+    model_type = typeof(model)
+    marg_coeff = marginal_coeff(model_type, ξ, get_paramlength(model))
+
+    mm = similar(marg_data)
+    @inbounds for i = axes(mm, 1)
+        mm[i, :] = gradient(
+            x -> unconditional_mean(model_type, marg_coeff, slice(x, var_nums)...),
+            marg_data[i, :]
+        )
+    end
+    mm, label = clean_marginaleffect(mm, label)  # drop the duplicated and constant columns
+    considx = findfirst(x->x==:_cons, label)  # drop the constant's marginal effect
+    mm, label = mm[begin:end, Not(considx)], label[Not(considx)]
+
+    return mm, label
+end
+
 
 
 """
@@ -29,7 +113,7 @@ function sfCI(
     ;bootdata=nothing,
     _observed=nothing,
     level=0.05,
-    verbose=false
+    verbose=true
     )
     # bias-corrected (but not accelerated) confidence interval 
     # For the "accelerated" factor, need to estimate the SF model 
@@ -43,7 +127,7 @@ function sfCI(
     z1 = quantile(Normal(), level/2)
     z2 = quantile(Normal(), 1 - level/2)  #! why z1 != z2?
     ci = Vector{NTuple{2, float(Int)}}(undef, nofK)
-    @inbounds for i in 1:nofK
+    @inbounds for i = 1:nofK
         data = bootdata[:,i]
         count = sum(data .< observed[i])
         z0 = quantile(Normal(), count/nofobs) # bias corrected factor
@@ -61,6 +145,17 @@ end
 
 
 """
+    resampling(::Nothing, nobs::Int)
+    resampling(rng::AbstractRNG, nobs::Int)
+
+Resampling method through the number of observations. Two difference method base 
+on wheter the `AbstractRNG` is given.
+"""
+resampling(::Nothing, nobs) = sample(1:nobs, nobs; replace=true)
+resampling(rng::AbstractRNG, nobs) = sample(rng, 1:nobs, nobs; replace=true)
+
+
+"""
     bootstrap_marginaleffect(result, mymisc, R, level, iter, getBootData, seed, verbose)
 
 Main method for bootstrap marginal effect
@@ -68,7 +163,6 @@ Main method for bootstrap marginal effect
 """
 function bootstrap_marginaleffect(
     result::sfresult;
-    mymisc=nothing,
     R::Int=500, 
     level=0.05,
     iter::Int=-1,
@@ -77,31 +171,26 @@ function bootstrap_marginaleffect(
     verbose=true)
     # check some requirements of data
     ((level > 0.0) && (level < 1.0)) || throw("The significance level (`level`) should be between 0 and 1.")
-
     level > 0.5 && (level = 1-level)  # 0.95 -> 0.05
 
     # In the following lines, the integer part had been taken care of in Type.
     (seed == -1) || ( seed > 0) || throw("`seed` needs to be a positive integer.")
     (iter == -1) || ( iter > 0) || throw("`iter` needs to be a positive integer.")
+    rng = seed != -1 ? MersenneTwister(seed) : nothing
     (R > 0) || throw("`R` needs to be a positive integer.")
 
     maximizer, model, data, options = unpack(result, (:ξ, :model, :data, :options))
     iter > 0 && (options[:main_maxit] = iter)
+    # options[:warmstart_solver] = nothing
 
-    _, obs_marg_mean = marginaleffect(maximizer, model, data)
-    rng = seed != -1 ? MersenneTwister(seed) : -1
-    options[:warmstart_solver] = nothing
-    p = Progress(R, desc="Sampling: ", color=:white, barlen=30)
-
+    obs_mm, marg_label = marginaleffect(maximizer, model, data)
+    obs_marg_mean = mean(obs_mm, dims=1)
+    p = Progress(R, desc="Resampling: ", color=:white, barlen=30)
     printstyled(" * bootstrap marginanl effect\n\n", color=:yellow)
-    sim_res = Matrix{Real}(undef, R, length(obs_marg_mean))
-    @inbounds for i in 1:R
+    sim_res, i = Matrix{Float64}(undef, R, size(obs_marg_mean, 2)), 0
+    @inbounds for i = 1:R
         @label start1
-        if rng != -1
-            selected_row = sample(rng, 1:numberofobs(data), numberofobs(data); replace=true)
-        else
-            selected_row = sample(1:numberofobs(data), numberofobs(data); replace=true)
-        end
+        selected_row = resampling(rng, numberofobs(data))
         bootstrap_data = data(selected_row)
         bootstrap_model = model(selected_row, bootstrap_data)
         
@@ -111,6 +200,7 @@ function bootstrap_marginaleffect(
            Optim.g_residual(main_opt) > 1e-1
                @goto start1
         end
+
         numerical_hessian = hessian!(Hessian, ξ)
         var_cov_matrix = try
             inv(numerical_hessian)
@@ -119,22 +209,27 @@ function bootstrap_marginaleffect(
         end
         !all(diag(var_cov_matrix) .> 0) && (@goto start1)
 
-        _, marginal_mean = marginaleffect(ξ, bootstrap_model, bootstrap_data, true)
-        # in this run some of the element is NaN
-        sum(isnan.(marginal_mean)) == 0 ? (sim_res[i, :] = marginal_mean) : (@goto start1)
-        
-        next!(p)
-    end  # for i=1:R
-    
-    theMean = collect(values(obs_marg_mean))
-    theSTD = sqrt.(sum((sim_res .- theMean').^2, dims=1) ./(R-1))
+        try
+            marginal_mean = mean(
+                marginaleffect(ξ, bootstrap_model, bootstrap_data)[1], 
+                dims=1
+            )
+            # in this run some of the element is NaN
+            sum(isnan.(marginal_mean)) == 0 ? (sim_res[i, :] = marginal_mean) : (@goto start1)
+        catch
+            @goto start1
+        end
+
+        i += 1; next!(p)
+    end  # end of the bootstrap process
+    theSTD = sqrt.(sum((sim_res .- obs_marg_mean).^2, dims=1) ./ (R-1))
     theSTD = reshape(theSTD, size(theSTD, 2))
-    ci_mat = sfCI(bootdata=sim_res, _observed=theMean, level=level, verbose=verbose)
+    ci_mat = sfCI(bootdata=sim_res, _observed=obs_marg_mean, level=level, verbose=verbose)
 
     if verbose
-        table_content = hcat(collect(keys(obs_marg_mean)), theMean, theSTD, ci_mat)
-        table = [" " "mean of the marginal" "std.err. of the"  "bias-corrected"; 
-                 " " "effect on E(u)"       "mean effect"      "$(100*(1-level))%  conf. int.";
+        table_content = hcat(marg_label, obs_marg_mean', theSTD, ci_mat)
+        table = [" "  "mean of the marginal"  "std.err. of the"   "bias-corrected"; 
+                 " "  "effect on E(u)"        "mean effect"       "$(100*(1-level))%  conf. int.";
                  table_content]
         pretty_table(
             table,
@@ -147,4 +242,21 @@ function bootstrap_marginaleffect(
         println()
     end
     getBootData ? (return hcat(theSTD, ci_mat), sim_res) : (return hcat(theSTD, ci_mat))
+end
+
+
+"""
+    sfmarginal(result::NamedTuple; bootstrap=false, kwargs...)
+
+The primary interface for usage, and the main input is the output `result`
+from the mle estimation.
+"""
+function sfmarginal(result; bootstrap=false, kwargs...)
+    if !bootstrap
+        mm, label = marginaleffect(result.ξ, result.model, result.data)
+        label = [Symbol(:marg_, i) for i in label]
+        return DataFrame(mm, label), NamedTuple{Tuple(label)}(mean(mm, dims=1))
+    else
+        bootstrap_marginaleffect(result; kwargs...)
+    end
 end

@@ -3,6 +3,9 @@ usedata(df::DataFrame) = df
 usedata() = nothing
 
 
+sfspec(data...; model::Symbol, kwargs...) = sfspec(eval(model), data...; kwargs...)
+
+
 """
     setindex!(A::OrderedDict{T, U}, X::Union{Vector{T}, NTuple{N, T} where N}, ind::Union{Vector{U}, NTuple{M, U} where M}) where{T, U}
 
@@ -37,13 +40,21 @@ end
 
 Defining Hyperparmeters with default for the mle estimatation.
 
+# Hyperparmeters
+- warmstart_solver
+- warmstart_maxIT
+- main_solver
+- main_maxIT
+- tolerance
+- table_format
+
 See also: [`setindx!`](@ref)
 """
 function sfopt(;kwargs...)
     default_opt = OrderedDict{Symbol, Any}(
-        :warmstart_solver=>NelderMead, 
+        :warmstart_solver=>:NelderMead, 
         :warmstart_maxIT=>100,
-        :main_solver=>Newton,
+        :main_solver=>:Newton,
         :main_maxIT=>2000,
         :tolerance=>1e-8,
         :verbose=>true,
@@ -52,10 +63,9 @@ function sfopt(;kwargs...)
     # values(kwags)` get a named tuple
     # setindex!(A, X, inds...)
     length(kwargs) != 0 && setindex!(default_opt, values(values(kwargs)), keys(kwargs))
-    default_opt[:warmstart_solver] !== nothing && (default_opt[:warmstart_solver] = default_opt[:warmstart_solver]())
-    default_opt[:main_solver] = default_opt[:main_solver]()
+    default_opt[:warmstart_solver] !== nothing && (default_opt[:warmstart_solver] = eval(default_opt[:warmstart_solver])())
+    default_opt[:main_solver] = eval(default_opt[:main_solver])()
     return default_opt
-
 end
 
 
@@ -170,7 +180,8 @@ function sfmodel_fit(;spec,
     options === nothing && (options = sfopt())
 
     # set the initial condition
-    noffixed = !isa(data, PanelData) ? 0 : numberofi(data)
+    # only TFE_WH2010, TFE_CSW2014 should be adjust to numberofi
+    noffixed = 0
     startpt, llols, skols = initial_condition(
         frontier(data), dependentvar(data), init, get_paramlength(model)[1], numberofobs(data), noffixed;
         nofparam=numberofparam(model), paramnames=get_paramname(model)[:, 1]

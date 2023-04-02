@@ -159,7 +159,6 @@ function output_estimation(nofobs, warm_opt, main_opt)
     println(" Number Of Total Iterations: $iter")
     println(" Iteration Limit Reached:    $(opt.iteration_limit_reached(main_opt))")
     println("")
-
 end
 
 

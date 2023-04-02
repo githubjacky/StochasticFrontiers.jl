@@ -65,9 +65,9 @@ The likelihood function of half normal, truncated normal and exponential distrib
 - `λ²::Vector{<:Real}`: parameter of the exponential distribution
 - `ϵ::Vector{<:Real}`: conposite error term
 """
-function likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
+function _likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     res = similar(ϵ)
-    for i in eachindex(σᵥ², σᵤ², ϵ)
+    @inbounds for i in eachindex(σᵥ², σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σ = sqrt(σ²)
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
@@ -78,9 +78,9 @@ function likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     return res
 end
 
-function likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
+function _likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     res = similar(ϵ)
-    for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    @inbounds for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
@@ -91,9 +91,9 @@ function likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     return res
 end
 
-function likelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+function _likelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
     res = similar(ϵ)
-    for i in eachindex(σᵥ², λ², ϵ)
+    @inbounds for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         res[i] = expopdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
@@ -117,7 +117,7 @@ The log likelihood function of half normal, truncated normal and exponential dis
 - `λ²::Vector{<:Real}`: parameter of the exponential distribution
 - `ϵ::Vector{<:Real}`: conposite error term
 """
-function loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
+function _loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
@@ -126,10 +126,10 @@ function loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
         @reduce llh += llhᵢ
     end
 
-    return res
+    return llh
 end
 
-function loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
+function _loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
     @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
@@ -142,8 +142,8 @@ function loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
     return llh
 end
 
-function loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
-    @floop for i in eachindex(σᵥ², λ², ϵ)
+function _loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+     @floop for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         llhᵢ = expologpdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
@@ -172,7 +172,7 @@ half normal, normal, exponential
 function _jlmsbc(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @floop for i in eachindex(σᵥ², σᵤ², ϵ)
+    @inbounds @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -186,7 +186,7 @@ end
 function _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    @inbounds @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (σᵥ²[i]*μ[i] - σᵤ²[i]*ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -197,14 +197,15 @@ function _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     return jlms, bc
 end
 
-function _jlmsbc(::Type{Expo{T}}, σᵥ², λ, ϵ) where T
+function _jlmsbc(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @floop for i in eachindex(σᵥ², λ, ϵ)
+    @inbounds @floop for i in eachindex(σᵥ², λ², ϵ)
         σᵥ = sqrt(σᵥ²[i])
-        μₛ  = (-ϵ[i]) - (σᵥ²[i]/λ[i])
+        λ = sqrt(λ²[i])
+        μₛ  = (-ϵ[i]) - (σᵥ²[i]/λ)
         jlms[i] = (σᵥ*normpdf(μₛ/σᵥ)) / normcdf(μₛ/σᵥ) + μₛ
-        bc[i] = exp(-μₛ+0.5*σᵥ²[i]) .* (normcdf((μₛ/σᵥ)-σᵥ) / normcdf(μₛ/σᵥ))
+        bc[i] = exp(-μₛ+0.5*σᵥ²[i]) * (normcdf((μₛ/σᵥ)-σᵥ) / normcdf(μₛ/σᵥ))
     end
     
     return jlms, bc
@@ -212,9 +213,9 @@ end
 
 
 """
-    uncondU(::Type{Half{T}}, σᵤ², dist_coeff) where T
-    uncondU(::Type{Trun{T, U}}, μ, σᵤ², dist_coeff) where{T, U}
-    uncondU(::Type{Expo{T}}, λ, dist_coeff) where T
+    _unconditional_mean(::Type{Half{T}}, log_σᵤ², dist_coeff) where T
+    _unconditional_mean(::Type{Trun{T, U}}, μ, log_σᵤ², dist_coeff) where{T, U}
+    _unconditional_mean(::Type{Expo{T}}, log_λ², dist_coeff) where T
 
 Calculate the unconditional mean of the composite error term
 Notice that if it's calculated to generate the marginal effect return Real 
@@ -222,105 +223,28 @@ required by the forwardDiff
 
 # Arguments
 - `μ::Vector{<:Real}`: parameter of the truncated normal distribution
-- `σᵤ²::AbstractMatrix{<:Real}`
-- `λ²::Vector{<:Real}`: parameter of the exponential distribution
+- `log_σᵤ²::AbstractMatrix{<:Real}`
+- `log_λ²::Vector{<:Real}`: parameter of the exponential distribution
 - `dist_coeff::Vector{<:Real}`
 """
-function uncondU(::Type{Half{T}}, σᵤ², coeff) where T
-    res = broadcast(sqrt, broadcast(*, (2/π), broadcast(exp, (σᵤ² * coeff))))
-    length(res) != 1 ? (return res) : (return res[1])
-end
-
-function uncondU(::Type{Trun{T, U}}, μ, σᵤ², coeff) where{T, U}
-    n = numberofvar(μ)
-    Wμ, Wᵤ = coeff[begin:n], coeff[n+1:end] 
-    μ = μ * Wμ
-    σᵤ = broadcast(exp, broadcast(*, 0.5, (σᵤ² * Wᵤ)))
-
-    Λ = broadcast(/, μ, σᵤ)
-    res = broadcast(*, σᵤ, (Λ + broadcast(/, broadcast(normpdf, Λ), broadcast(normcdf, Λ))))
-    length(res) != 1 ? (return res) : (return res[1])
-end
-
-function uncondU(::Type{Expo{T}}, λ, dist_coeff) where T
-    res = broadcast(exp, λ * coeff)
-    length(res) != 1 ? (return res) : (return res[1])
-end
-
-
-"""
-    clean_marginaleffect(m::Matrix{<:Any}, labels::Vector{Symbol})
-
-To drop the constant and duplicated marginal effect
-"""
-function clean_marginaleffect(m, labels)
-    unique_label = unique(labels)
-    pos = Dict([(i, findall(x->x==i, labels)) for i in unique_label])
-    id = Dict([(i, pos[i][1]) for i in unique_label])
-    count = Dict([(i, length(pos[i])) for i in unique_label])
-    drop = []
-    for (i, label) in enumerate(labels)
-        # task1: drop the constant columns
-        if length(unique(m[:, i])) == 1
-            append!(drop, i)
-            count[label] -= 1
-            if i == id[label] && count[label] != 0
-                id[label] = pos[label][1+(length(pos[label])-count[label])]
-            end
-            continue
-        end
-        # task2: drop the columns with duplicated column names
-        if i != id[label]
-            tar = id[label]
-            m[:, tar] = m[:, tar] + m[:, i]
-            append!(drop, i)
-            count[label] -= 1
-        end
-    end
-    length(labels) == length(drop) && error("there is no marginal effect")
-
-    return m[:, Not(drop)], unique_label
-end
-
-
-"""
-    _marginaleffect(ξ::Vector{T}, struc::SFmodel, data::AbstractData, bootstrap::Bool) where T
-
-*Warning: this method only create the base template, further completion should
-be done.*
-"""
-function _marginaleffect(ξ, model, data, bootstrap)
-    # prepare the distribution data
-    dist_data = unpack(distof(model))
-    var_nums = [numberofvar(i) for i in dist_data]
-    var_num = sum(var_nums)
-
+function _unconditional_mean(::Type{Half{T}}, coeff, log_σᵤ²) where T
+    uncondU = sqrt((2/π) * exp(log_σᵤ²'*coeff))
     
-    dist_coef = slice(ξ, model.ψ, mle=true)[2]
-    # the purpose of `let` is to avoid boxed variables required by the `@floop`
-    dist_data = hcat(dist_data...)
-    dist_type = typeofdist(model)
-    mm = Matrix{Float64}(undef, numberofobs(dist_data), var_num)
-    for i = axes(mm, 1)
-        @inbounds mm[i, :] = gradient(
-            marg -> uncondU(
-                dist_type,
-                [reshape(j, 1, length(j)) for j in slice(marg, var_nums)]...,
-                dist_coef
-            ),
-            dist_data[i, :]
-        )
-    end
+    return uncondU
+end
 
-    beg_label = numberofvar(data.frontiers) + 1
-    en_label = beg_label + sum(var_nums) - 1
-    label = model.paramnames[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
-    mm, label = clean_marginaleffect(mm, label)  # drop the duplicated and constant columns
-    mean_marginal = mean(mm, dims=1)
-    if bootstrap
-        return mm, mean_marginal
-    else
-        label = [Symbol(:marg_, i) for i in label]
-        return DataFrame(mm, label), NamedTuple{Tuple(label)}(mean_marginal)
-    end
+function _unconditional_mean(::Type{Trun{T, U}}, coeff, μ, log_σᵤ²) where{T, U}
+    Wμ, Wᵤ = slice(coeff, [length(μ), length(log_σᵤ²)])
+    μ = μ' * Wμ
+    σᵤ = exp(0.5*log_σᵤ²'*Wᵤ)
+    Λ = μ / σᵤ
+    uncondU = σᵤ * (Λ + normpdf(Λ)/normcdf(Λ))
+
+    return uncondU
+end
+
+function _unconditional_mean(::Type{Expo{T}}, coeff, log_λ²) where T
+    uncondU = sqrt(exp(log_λ²'*coeff))
+    
+    return uncondU
 end

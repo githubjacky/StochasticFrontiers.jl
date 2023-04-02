@@ -39,31 +39,17 @@ function (a::PFEWH)(selected_row, paneldata)
 end
 
 
-"""
-    sfspec(::Type{Cross}, <arguments>; type, dist, σᵥ², depvar, frontiers)
-
-The model: 
-
-# Arguments
-- `data::Union{Tuple{DataFrame}, Tuple{}}`: frame or matrix data
-- `type::Union{Type{Production}, Type{Cost}}`: type of economic interpretation
-- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: assumption of the inefficiency
-- `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`: 
-- `ivar::Union{Vector{<:Real}, Sumbol}`: specific data of panel model
-- `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`: dependent variable
-- `frontiers::Union{Matrix{<:Real}, NTuple{N, Symbol} where N}`: explanatory variables
-- `hscale::Union{AbstractVecOrMat{<:Real}, Symbol}`: scaling property
-"""
 function sfspec(::Type{PFEWH}, data...; type, dist, σᵥ², ivar, depvar, frontiers, hscale)
     # get the base vaiables
-    paneldata, fitted_dist, _col1, _col2 = getvar(data, type, ivar, dist, σᵥ², depvar, frontiers)
+    paneldata, fitted_dist, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
 
     # get hscale and demean data 
+    df = length(data) != 0 ? data[1] : data
     h = Panel(readframe(hscale, df=df), get_rowidx(paneldata))
     h, _ = isMultiCollinearity(:hscale, h)
+    fitted_dist = isconstant(fitted_dist; warn=false)
 
     Ỹ, X̃ = sf_demean(dependentvar(paneldata)), sf_demean(frontier(paneldata))
-    
    
     # construct remaind first column of output estimation table
     _col1[1] = Symbol(:demean, _col1[1])
@@ -78,11 +64,11 @@ function sfspec(::Type{PFEWH}, data...; type, dist, σᵥ², ivar, depvar, front
     # generate the remain rule for slicing parameter
     ψ = complete_template(
         Ψ(frontier(paneldata), fitted_dist, variance(paneldata)), 
-        numberofvar(hscale_)
+        numberofvar(h)
     )
     push!(ψ, sum(ψ))
 
-    return PFEWH(fitted_dist, ψ, paramnames, PFEWHData(Ỹ, X̃, h)), paneldata
+    return PFEWH(fitted_dist, Ỹ, X̃, h, ψ, paramnames), paneldata
 end
 
 

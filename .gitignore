@@ -3,7 +3,7 @@
 # personal test
 
 # test data
-test/data/
+examples/data/
 
 
 .DS_Store

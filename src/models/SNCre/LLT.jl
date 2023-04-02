@@ -176,7 +176,7 @@ function LLT(ξ, model::SNCre, data::PanelData)
 
    @floop for i in eachindex(σᵥ², dist_param, simulate_η)
         llhᵢ = log(mean([
-            Base.prod(likelihood(
+            Base.prod(_likelihood(
                 dist_type, σᵥ²[i], dist_param[i]..., simulate_η[i][:, j]
             ))
             for j in axes(simulate_η[i], 2)

@@ -19,5 +19,5 @@ function LLT(ξ, model::Cross, data::Data)
         data
     )
 
-    return -loglikelihood(typeofdist(model), σᵥ², dist_param..., ϵ)
+    return -_loglikelihood(typeofdist(model), σᵥ², dist_param..., ϵ)
 end

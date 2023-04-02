@@ -1,33 +1,68 @@
 function composite_error(coeff, model::PFEWH, data)
-    Ỹ, X̃, hscale =  unpack(
-        get_modeldata(model), (:Ỹ, :X̃, :hscale)
+    fitted_dist, Ỹ, X̃, hscale =  unpack(
+        model, (:fitted_dist, :Ỹ, :X̃, :hscale)
     )
-    econtype, fitted_dist, σᵥ² = unpack(
-        data, (:econtype, :fitted_dist, :σᵥ²)
-    )
+    econtype, σᵥ² = unpack(data, (:econtype, :σᵥ²))
 
-    σᵥ² = broadcast(exp, σᵥ²*coeff[3])
-    dist_param = fitted_dist(coeff[2])
-
+    σᵥ² = exp((σᵥ²*coeff[3])[1])  # σᵥ² is a scalar
+    dist_param = [i[1] for i in fitted_dist(coeff[2])]  # all dist_param are scalars
     h = broadcast(exp, hscale*coeff[4])
-    h̃ = sf_demean(h)
-
-    ϵ̃ = Panel(
-        (econtype * (Ỹ - X̃*coeff[1]))[:, 1],
-        get_rowidx(data)
-    )
-
-    return ϵ̃, σᵥ², dist_param, h̃
+    ϵ̃ = sf_demean(econtype * (Ỹ - X̃*coeff[1]))
+    
+    return ϵ̃, σᵥ², dist_param, h
 end
 
 
-function LLT(ξ, model::PFEWH, data::Data)
-    ϵ̃, σᵥ², _dist_param, h̃ = composite_error(
-        slice(ξ, get_paramlength(model), mle=true), 
+function loglikelihood(::Type{PFEWH{Trun{S, U}, V, W, X}}, 
+                       σᵥ², μ, σᵤ², ϵ̃, h̃, γ, δ2) where{S, U, V, W, X}
+    T = numberoft(ϵ̃)
+    @floop for (ϵ̃ᵢ, h̃ᵢ, Tᵢ) in zip(ϵ̃, h̃, T)
+        σₛₛ² = 1.0/(h̃ᵢ'*h̃ᵢ*(1/σᵥ²) + 1/σᵤ²)
+        μₛₛ = (μ/σᵤ² - (ϵ̃ᵢ'*h̃ᵢ*(1/σᵥ²))[1]) * σₛₛ²
+        
+        es2 = -0.5 * sum(ϵ̃ᵢ.^2) * (1/σᵥ²)
+        KK = -0.5*(Tᵢ-1)*log(2π) - 0.5*(Tᵢ-1)*γ
+        llhᵢ = KK + es2 +
+               0.5*((μₛₛ^2)/σₛₛ² - μ^2/σᵤ²) +
+               0.5*log(σₛₛ²) + 
+               normlogcdf(μₛₛ/sqrt(σₛₛ²)) -
+               0.5*δ2 - 
+               normlogcdf(μ/sqrt(σᵤ²))
+
+        @reduce llh += llhᵢ
+    end
+
+    return llh
+end
+
+
+function LLT(ξ, model::PFEWH{Trun{T, S}, U, V, W}, data::PanelData) where{T, S, U, V, W}
+    coeff = slice(ξ, get_paramlength(model), mle=true)
+    ϵ̃, σᵥ², dist_param, h = composite_error(
+        coeff, 
         model, 
         data
     )
-    dist_type = typeofdist(model)
+    h̃ = Panelized(sf_demean(h))
+    llh = loglikelihood(
+        typeof(model), σᵥ², dist_param..., Panelized(ϵ̃), h̃, coeff[3][1], coeff[2][2]
+    )
 
-    return -loglikelihood(typeofdist(data), σᵥ², dist_param..., ϵ)
+    return -llh
+end
+
+function LLT(ξ, model::PFEWH{Half{T}, S, U, V}, data::PanelData) where{T, S, U, V}
+    coeff = slice(ξ, get_paramlength(model), mle=true)
+    ϵ̃, σᵥ², dist_param, h = composite_error(
+        coeff, 
+        model, 
+        data
+    )
+    h̃ = Panelized(sf_demean(h))
+
+    llh = loglikelihood(
+        PFEWH{Trun{T, T}, S, U, V}, σᵥ², 0., dist_param..., Panelized(ϵ̃), h̃, coeff[3][1], coeff[2][1]
+    )
+
+    return -llh
 end

@@ -1,26 +1,10 @@
-# better syntax for optimizer
-abstract type AbstractOptimizer end
-abstract type NelderMead <: AbstractOptimizer end
-abstract type SimulatedAnnealing <: AbstractOptimizer end
-abstract type SAMIN <: AbstractOptimizer end
-abstract type ParticleSwarm <: AbstractOptimizer end
-abstract type ConjugateGradient <: AbstractOptimizer end
-abstract type GradientDescent <: AbstractOptimizer end
-abstract type BFGS <: AbstractOptimizer end
-abstract type LBFGS <: AbstractOptimizer end
-abstract type Newton <: AbstractOptimizer end
-abstract type NewtonTrustRegion <: AbstractOptimizer end
-abstract type IPNewton <: AbstractOptimizer end
-
-# get the actual optimizer from package, `Optim`(import as opt)
-(a::Type{<:AbstractOptimizer})() = getproperty(opt, Symbol(a))()
-
 # Stochastic Frontiers Model
 abstract type AbstractSFmodel end
 const SFmodel = AbstractSFmodel
 abstract type AbstractPanelModel <: AbstractSFmodel end
 const PanelModel = AbstractPanelModel
 
+# some API to get the properties of `<:SFmodel`
 distof(a::SFmodel) = getproperty(a, :fitted_dist)
 typeofdist(a::SFmodel) = typeof(getproperty(a, :fitted_dist))
 
@@ -46,7 +30,7 @@ Base.:*(::Type{Cost}, a) = -a
 """
     tnumTorowidx(tnum::Vector{Int})
 
-Transform `tnum` to `rowidx` for usage of construction of `Panel` or `Panelized`
+Transform number of period `tnum` to `rowidx` for the construction of `Panel` or `Panelized`
 
 # Examples
 ```juliadoctest
@@ -62,7 +46,7 @@ julia> rowidx = tnumTorowidx(tnum)
 function tnumTorowidx(tnum)
     rowidx = Vector{UnitRange{Int}}(undef, length(tnum))
     beg = 1
-    @tturbo warn_check_args=false for i in eachindex(rowidx)
+    @inbounds for i in eachindex(rowidx)
         en = beg + tnum[i] - 1
         rowidx[i] = beg:en
         beg = en + 1
@@ -187,6 +171,7 @@ function Panel(data::Panelized)
 end
 
 # arithmetic rules
+Base.:*(a::Real, b::AbstractPanel{T, N}) where{T, N} = Panel(a*b.data, b.rowidx)
 Base.:*(a::AbstractPanel{T1, 2}, b::AbstractVector{T2}) where{T1, T2} = Panel(a.data*b, a.rowidx)
 Base.:+(a::AbstractPanel{T1, N1}, b::AbstractPanel{T2, N2}) where{T1, T2, N1, N2} = Panel(a.data+b.data, a.rowidx)
 Base.:-(a::AbstractPanel{T1, N1}, b::AbstractPanel{T2, N2}) where{T1, T2, N1, N2} = Panel(a.data-b.data, a.rowidx)
@@ -213,8 +198,7 @@ function Panelized(data::PanelVector)
 end
 
 """
-    sf_demean(data::Panelized{Vector{Vector{<:Real}}})
-    sf_demean(data::Panelized{Vector{Matrix{<:Real}}})
+    sf_demean(data::Panelized)
     sf_demean(data::AbstractPanel)
 
 demean function for panel data
@@ -240,7 +224,6 @@ julia> sf_demean(data)
  -2.5   0.0
 ```
 """
-
 function sf_demean(data::Panelized)
     means = mean.(data, dims=1)
     transformed = [data[i] .- means[i] for i in eachindex(data, means)]
@@ -251,13 +234,13 @@ end
 sf_demean(data::AbstractPanel) = sf_demean(Panelized(data))
 
 
-
 """
     fixrange(range::Vector{UnitRange{Int}}, totallag::Int)
     fixrange(range::Vector{UnitRange{Int}}, lag::Int, totallag::Int)
 
-The former method is used by `lagdrop` and the second is used by `lagshift` 
-to get the target indices which is useful when there is the adjustment of panel data.
+The former method is used by `lagdrop` and the letter is used by `lagshift`.
+To get the target indices which is useful when there is the time adjustment of panel data.
+Example is the time series model.
 
 # Examples
 ```juliadoctest
@@ -433,6 +416,12 @@ end
 # Distributions assumptions
 abstract type AbstractDist end
 
+# reconstruct the type of the distribution
+function (s::AbstractDist)(x...)
+    return s(x...)
+end
+
+
 struct Half{T<:AbstractVecOrMat} <: AbstractDist
     σᵤ²::T
 end
@@ -443,7 +432,7 @@ truncated_variance(a::Half) = a.σᵤ²
 Half(;σᵤ²) = (Half, (σᵤ²,))
 const half = Half
 
-# inner product of the data and coefficients
+# product of the data and coefficients
 function (s::Half)(x::Vector)
     return (broadcast(exp, truncated_variance(s)*x),)
 end
@@ -479,7 +468,7 @@ const expo = Expo
 
 # inner product of the data and coefficients
 function (s::Expo)(x::Vector)
-    return  (broadcast(exp, s.λ * x),)
+    return (broadcast(exp, s.λ * x),)
 end
 
 
@@ -513,7 +502,7 @@ struct PanelData{T<:DataType,
     nofobs::Integer
 end
 
-# Some utility function
+# API to get the property of `AbstractData` more effieciet
 get_rowidx(a::PanelData) = getproperty(a, :rowidx)
 variance(a::AbstractData) = getproperty(a, :σᵥ²)
 dependentvar(a::AbstractData) = getproperty(a, :depvar)

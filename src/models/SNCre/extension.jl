@@ -54,4 +54,6 @@ function jlmsbc(ξ, model::SNCre, data::PanelData)
    return jlms, bc
 end
 
-marginaleffect(ξ, model::SNCre{T}, data, bootstrap=false) where T = _marginaleffect(ξ, model, data, bootstrap)
+marginal_data(model::SNCre) = _marg_data(model)
+margianl_coeff(::Type{SNCre{T, S, U, V}}, ξ, ψ) where{T, S, U, V} = slice(ξ, ψ, mle=true)[2]
+unconditional_mean(::Type{SNCre{T, S, U, V}}, coeff, args...) where {T, S, U, V} = _unconditional_mean(T, coeff, args...)
