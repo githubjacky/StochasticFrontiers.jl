@@ -536,25 +536,3 @@ function (a::PanelData)(selected_row)
     )
     return bootstrap_data
 end
-
-
-# output the estimation result
-struct sfresult{T, S}
-    ξ::Vector{Float64}
-    model::T
-    data::S
-    options::OrderedDict{Symbol, Any}
-    jlms::Vector{Float64}
-    bc::Vector{Float64}
-    loglikelihood::Float64
-end
-
-
-# API
-sfmaximizer(a::sfresult)     = getproperty(a, :ξ)
-sfmodel(a::sfresult)         = getproperty(a, :model)
-sfdata(a::sfresult)          = getproperty(a, :data)
-sfoptions(a::sfresult)       = getproperty(a, :options)
-sf_inefficiency(a::sfresult) = getproperty(a, :jlms)
-sf_efficiency(a::sfresult)   = getproperty(a, :bc)
-sfmaximum(a::sfresult)       = getproperty(a, :loglikelihood)

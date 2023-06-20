@@ -1,8 +1,8 @@
 function composite_error(coeff, model::PFEWH, data)
     fitted_dist, Ỹ, X̃, hscale =  unpack(
-        model, (:fitted_dist, :Ỹ, :X̃, :hscale)
+        model, :fitted_dist, :Ỹ, :X̃, :hscale
     )
-    econtype, σᵥ² = unpack(data, (:econtype, :σᵥ²))
+    econtype, σᵥ² = unpack(data, :econtype, :σᵥ²)
 
     σᵥ² = exp((σᵥ²*coeff[3])[1])  # σᵥ² is a scalar
     dist_param = [i[1] for i in fitted_dist(coeff[2])]  # all dist_param are scalars

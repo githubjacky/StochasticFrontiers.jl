@@ -30,9 +30,7 @@ import InvertedIndices: Not
 import ProgressMeter: Progress, BarGlyphs, next!
 import LoopVectorization: @tturbo
 import FLoops: @floop, @reduce
-
 import Optim as opt  # for better understanding of the origin of the method
-
 
 
 # Modulize the source code
@@ -40,6 +38,7 @@ include("types.jl")
 include("utils.jl")
 include("function.jl")
 
+# models
 include("models/SNCre/main.jl")
 include("models/Cross/main.jl")
 include("models/PFEWH/main.jl")
@@ -47,4 +46,5 @@ include("models/PFEWH/main.jl")
 include("structure/MLE.jl")
 include("structure/main.jl")
 include("structure/extension.jl")
-end  # end of module --SFrontiers
+include("structure/API.jl")
+end  # end of module

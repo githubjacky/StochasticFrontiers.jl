@@ -1,7 +1,7 @@
 function composite_error(coeff, model::Cross, data)
     fitted_dist = distof(model)
     econtype, σᵥ², depvar, frontiers = unpack(
-        data, (:econtype, :σᵥ², :depvar, :frontiers)
+        data, :econtype, :σᵥ², :depvar, :frontiers
     )
 
     σᵥ² = exp.(σᵥ² * coeff[3])

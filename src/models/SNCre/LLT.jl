@@ -137,9 +137,9 @@ end
 
 
 function composite_error(coeff, model::SNCre, data::PanelData)
-    fitted_dist, serialcorr, R, _σₑ², xmean = unpack(model, (:fitted_dist, :serialcorr, :R, :σₑ², :xmean))
+    fitted_dist, serialcorr, R, _σₑ², xmean = unpack(model, :fitted_dist, :serialcorr, :R, :σₑ², :xmean)
     econtype, σᵥ², depvar, frontiers = unpack(
-        data, (:econtype, :σᵥ², :depvar, :frontiers)
+        data, :econtype, :σᵥ², :depvar, :frontiers
     )
     
     σᵥ² = Panelized(

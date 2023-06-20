@@ -612,14 +612,14 @@ end
 
 
 """
-    numberofvar(m::AbstractVecOrMat{<:Real})    
+    numberofvar(m::AbstractMatrix)    
 
 *optional utility function*
 
 
-Used to check the number of explanatory variables.
+To check the number of explanatory variables.
 """
-numberofvar(m::AbstractVecOrMat) = size(m, 2)
+numberofvar(m) = size(m, 2)
 
 
 """
@@ -636,14 +636,12 @@ numberofobs(v::AbstractVector) = length(v)
 numberofobs(a::AbstractData) = getproperty(a, :nofobs)
 
 """
-    unpack(A)
-    unpack(A, ind::Tuple{Vararg{Symbol}})
+    unpack(A, args...)
 
 *optional utility function*
 
-Self defined data type utilities to get the multiple propertyies more efficient.
-The fomer method is to get all properties of the type while the latter only get
-partial properties given the corresponding fieldnames.
+If the `length` of `args` is 0 then all properties of the type `A` will be return, while if
+it's not, partial properties are returned given the corresponding fieldnames.
 
 # Example
 ```juliadoctest
@@ -654,15 +652,16 @@ julia> unpack(dist)
  [1.0, 1.0, 1.0  …  1.0, 1.0]
  [1.0, 1.0, 1.0  …  1.0, 1.0]
 
-julia> unpack(dist, (:μ,))
+julia> unpack(dist, :μ)
 1-element Vector{Vector{Float64}}:
  [1.0, 1.0, 1.0  …  1.0, 1.0]
 ```
-"""
-function unpack(A)
-    return [Base.getproperty(A, i) for i in fieldnames(typeof(A))]
-end
 
-function unpack(A, ind::Tuple{Vararg{Symbol}})
-    return [Base.getproperty(A, i) for i in ind]
+"""
+function unpack(A, args...)
+    if length(args) == 0
+        return [Base.getproperty(A, i) for i in fieldnames(typeof(A))]
+    else
+        return [Base.getproperty(A, i) for i in args]
+    end
 end

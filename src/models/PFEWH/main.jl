@@ -25,7 +25,7 @@ end
 
 # for bootstrap
 function (a::PFEWH)(selected_row, paneldata)
-    rowidx, depvar, frontiers = unpack(paneldata, (:rowidx, :depvar, :frontiers))
+    rowidx, depvar, frontiers = unpack(paneldata, :rowidx, :depvar, :frontiers)
     bootstrap_model = PFEWH(
         typeofdist(a)([Panel(i[selected_row, :], rowidx) for i in unpack(distof(a))]...),
         sf_demean(depvar),

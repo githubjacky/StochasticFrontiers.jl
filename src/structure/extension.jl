@@ -1,18 +1,4 @@
 """
-    plot_inefficieny(res::sfresult)
-
-Plot the inefficiency and efficiency index
-"""
-function plot_inefficieny(res::sfresult)
-    plot(
-        histogram(sf_inefficiency(res), xlabel="JLMS", bins=100, label=""),
-        histogram(sf_efficiency(res), xlabel="BC", bins=50, label=""),
-        layout = (1,2), legend=false
-    )
-end
-
-
-"""
     _marg_data(model::SFmodel, args...)
 
 This is the template of getting the marginal effect data and also the number of variables 
@@ -23,11 +9,12 @@ in Truncated Normal and (σᵤ²,) in Half Nomral. Then, the data in `args` will
 
 """
 function _marg_data(model::SFmodel, args...)
-    _data = [
-        unpack(distof(model))...,
-        [getproperty(model, i) for i in args]...
-    ]
-    var_nums = [numberofvar(i) for i in _data]
+    _data = begin
+        length(args) == 0 ? 
+            [unpack(distof(model))...] : 
+            [unpack(distof(model))..., unpack(model, args...)]
+    end
+    var_nums = Vector{Int}([numberofvar(i) for i in _data])
     data = reduce(hcat, _data)
 
     return data, var_nums
@@ -140,20 +127,19 @@ Calculate the confidence interval of observed mean marginal effect through boots
 - `observed::Union{Vector{<:Real}, Real, Tuple, NamedTuple}: observed mean
 - `level::AbstractFloat`: confidence level
 - `verbose::Bool`
-"""
 
-function sfCI(
-    ;bootdata=nothing,
-    _observed=nothing,
-    level=0.05,
-    verbose=true
-    )
+"""
+function sfCI(;bootdata=nothing,
+               _observed=nothing,
+               level=0.05,
+               verbose=true
+              )
     # bias-corrected (but not accelerated) confidence interval 
     # For the "accelerated" factor, need to estimate the SF model 
     # for every jack-knifed sample, which is expensive.
     observed = !isa(_observed ,NamedTuple) ? _observed : values(_observed)
-    ((level > 0.0) && (level < 1.0)) || throw("The significance level (`level`) should be between 0 and 1.")
-    level > 0.50 && (level = 1-level)  # 0.95 -> 0.05
+    0. < level < 1. || throw("The significance level (`level`) should be between 0 and 1.")
+    level > 0.5 && (level = 1-level)  # 0.95 -> 0.05
     nofobs, nofK = size(bootdata)  # number of statistics
     (nofK == length(observed)) || throw("The number of statistics (`observed`) does not fit the number of columns of bootstrapped data.")
 
@@ -183,18 +169,29 @@ end
 
 Resampling method through the number of observations. Two difference method base 
 on wheter the `AbstractRNG` is given.
+
 """
 resampling(::Nothing, nobs) = sample(1:nobs, nobs; replace=true)
 resampling(rng::AbstractRNG, nobs) = sample(rng, 1:nobs, nobs; replace=true)
 
 
 """
-    bootstrap_marginaleffect(result, mymisc, R, level, iter, getBootData, seed, verbose)
+    bootstrap_marginaleffect(result, R, level, iter, getBootData, seed, verbose)
 
-Main method for bootstrap marginal effect
-- 
+Main method for bootstrap marginal effect `R` times given the confidence level `level`.
+To get the bootstrap data, Set `getBootData` to `true`.
+
+# Arguments
+- result::`sfresult`: the return of the function `sfmodel_fit`
+- R::`Int`: the number of bootstrap round, default to 500
+- level::`AbstractFloat`: confidence level, default to 5%
+- iter::`Int`: maximum optimization(MLE) iterations, default to 2000 or user specification in `sfopt`
+- getBootData::`Bool`: whether to return the bootstrap data, default to `false`
+- seed::`Int`: random seed
+- verbose::`Bool`: wheter to print message, default to `true`
+
 """
-function bootstrap_marginaleffect(result::sfresult;
+function bootstrap_marginaleffect(result;
                                   R::Int      = 500, 
                                   level       = 0.05,
                                   iter::Int   = -1,
@@ -203,27 +200,23 @@ function bootstrap_marginaleffect(result::sfresult;
                                   verbose     =true
                                   )
     # check some requirements of data
-    ((level > 0.0) && (level < 1.0)) || throw("The significance level (`level`) should be between 0 and 1.")
+    0. < level < 1. || throw("The significance level (`level`) should be between 0 and 1.")
     level > 0.5 && (level = 1-level)  # 0.95 -> 0.05
 
-    # In the following lines, the integer part had been taken care of in Type.
-    (seed == -1) || ( seed > 0) || throw("`seed` needs to be a positive integer.")
-    (iter == -1) || ( iter > 0) || throw("`iter` needs to be a positive integer.")
     rng = seed != -1 ? MersenneTwister(seed) : nothing
-    (R > 0) || throw("`R` needs to be a positive integer.")
 
-    maximizer, model, data, options = unpack(result, (:ξ, :model, :data, :options))
-    iter > 0 && (options[:main_maxit] = iter)
+    maximizer, model, data, options = unpack(result, :ξ, :model, :data, :options)
+    iter != -1 && (options[:main_maxit] = iter)
     # options[:warmstart_solver] = nothing
 
     obs_mm, marg_label = marginaleffect(maximizer, model, data)
     obs_marg_mean      = mean(obs_mm, dims=1)
 
     p = verbose ? 
-        Progress(R, desc="Resampling: ", color=:white, barlen=30) :
-        Progress(R, desc="Resampling: ", color=:white, barlen=30, enabled=false)
+        Progress(R, desc = "Resampling: ", color = :white, barlen = 30) :
+        Progress(R, desc = "Resampling: ", color = :white, barlen = 30, enabled = false)
 
-    verbose && printstyled(" * bootstrap marginanl effect\n\n", color=:yellow)
+    verbose && printstyled(" * bootstrap marginanl effect\n\n", color = :yellow)
     sim_res, i = Matrix{float(Int)}(undef, R, size(obs_marg_mean, 2)), 0
     @inbounds for i = 1:R
         @label start1
@@ -285,21 +278,4 @@ function bootstrap_marginaleffect(result::sfresult;
     output = getBootData ? (res, sim_res) : res
 
     return output
-end
-
-
-"""
-    sfmarginal(result::NamedTuple; bootstrap=false, kwargs...)
-
-The primary interface for usage, and the main input is the output `result`
-from the mle estimation.
-"""
-function sfmarginal(result; bootstrap=false, kwargs...)
-    if !bootstrap
-        mm, label = marginaleffect(result.ξ, result.model, result.data)
-        label = [Symbol(:marg_, i) for i in label]
-        return DataFrame(mm, label), NamedTuple{Tuple(label)}(mean(mm, dims=1))
-    else
-        bootstrap_marginaleffect(result; kwargs...)
-    end
 end
