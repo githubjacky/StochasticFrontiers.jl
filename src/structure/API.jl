@@ -19,7 +19,7 @@ end
 
 
 # output the estimation result
-struct sfresult{T, S}
+struct sfresult{T, S, U}
     ξ::Vector{Float64}
     model::T
     data::S
@@ -27,6 +27,7 @@ struct sfresult{T, S}
     jlms::Vector{Float64}
     bc::Vector{Float64}
     loglikelihood::Float64
+    opt_detail::U
 end
 
 
@@ -38,12 +39,21 @@ sf_inefficiency(a::sfresult) = getproperty(a, :jlms)
 sf_efficiency(a::sfresult)   = getproperty(a, :bc)
 sfmaximum(a::sfresult)       = getproperty(a, :loglikelihood)
 
+"""
+show the optimization details
+"""
+function sfopt_detail(a::sfresult)
+    opt_detail = a.opt_detail
+    if length(opt_detail) == 2
+        printstyled("\n * warm start \n\n", color=:cyan)
+        println(opt_detail[2])
+    end
+    printstyled("\n * optimization \n\n", color=:cyan)
+    println(opt_detail[1])
+end
 
 """
-    plot_inefficieny(res::sfresult)
-
 Plot the inefficiency and efficiency index
-
 """
 function plot_inefficieny(res::sfresult)
     plot(

@@ -9,7 +9,7 @@ using Test, Distributions
                 usedata("data/CrossData.csv"), 
                 model     = :Cross, 
                 type      = :Prod, 
-                dist      = Half(σᵤ² =(:age, :school, :yr, :_cons)),
+                dist      = Half(σᵤ² = (:age, :school, :yr, :_cons)),
                 σᵥ²       = :_cons, 
                 depvar    = :yvar, 
                 frontiers = (:Lland, :PIland, :Llabor, :Lbull, :Lcost, :yr, :_cons)
@@ -39,7 +39,7 @@ using Test, Distributions
                 usedata("data/CrossData.csv"), 
                 model     = :Cross, 
                 type      = :Prod, 
-                dist      = Trun(μ=:_cons, σᵤ²=:_cons), 
+                dist      = Trun(μ = :_cons, σᵤ² = :_cons), 
                 σᵥ²       = :_cons, 
                 depvar    = :yvar, 
                 frontiers = (:Lland, :PIland, :Llabor, :Lbull, :Lcost, :yr, :_cons)
@@ -58,7 +58,7 @@ using Test, Distributions
                 usedata("data/CrossData.csv"), 
                 model     = :Cross, 
                 type      = :Prod, 
-                dist      = Trun(μ=(:school, :yr, :_cons), σᵤ²=:_cons), 
+                dist      = Trun(μ = (:school, :yr, :_cons), σᵤ² = :_cons), 
                 σᵥ²       = :_cons, 
                 depvar    = :yvar, 
                 frontiers = (:Lland, :PIland, :Llabor, :Lbull, :Lcost, :yr, :_cons)
@@ -123,7 +123,7 @@ using Test, Distributions
                 usedata("data/CrossData.csv"), 
                 model=:Cross, 
                 type=:Prod, 
-                dist=Trun(μ=(:age, :school, :yr, :_cons), σᵤ²=(:age, :school, :yr, :_cons)),
+                dist=Trun(μ = (:age, :school, :yr, :_cons), σᵤ² = (:age, :school, :yr, :_cons)),
                 σᵥ²      =:_cons, 
                 depvar    = :yvar, 
                 frontiers = (:Lland, :PIland, :Llabor, :Lbull, :Lcost, :yr, :_cons)
@@ -167,7 +167,7 @@ using Test, Distributions
                 usedata("data/dairy.csv"), 
                 model     = :Cross, 
                 type      = :Prod, 
-                dist      = Expo(λ=(:comp, :_cons)),
+                dist      = Expo(λ = (:comp, :_cons)),
                 σᵥ²       = :_cons, 
                 depvar    = :ly, 
                 frontiers = (:llabor, :lfeed, :lcattle, :lland, :_cons)
@@ -259,13 +259,13 @@ using Test, Distributions
     end
 
 
-    @testset verbose=true "Example 12 : panel RE model with serial correlated error" begin
+    @testset verbose=true "Example 12 : panel correlated RE model with serial correlated error" begin
         res = sfmodel_fit(
             spec = sfspec(
                 usedata("data/SNCreData.csv"),
                 model      = :SNCre, 
                 type       = :Prod, 
-                dist       = Half(σᵤ²=:_cons), 
+                dist       = Half(σᵤ² = :_cons), 
                 σᵥ²        = :_cons, 
                 ivar       = :i, 
                 depvar     = :log_y, 

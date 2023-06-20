@@ -6,7 +6,8 @@ export module functionality
 # export functionality for model construction
 export 
     usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI, plot_inefficieny,
-    sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency, sfmaximum
+    sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency, sfmaximum,
+    sfopt_detail
 # export general distribution assumption and economic type
 export Half, half, Trun, trun, Expo, expo
 

@@ -116,13 +116,12 @@ end
     initial_condition(froniters, depvar, init::NamedTuple, nofx, nofobs; kwargs...)
     initial_condition(froniters, depvar, init::Nothing, nofx, nofobs; kwargs...)
 
-Set the initial condition for coefficient of explanatory variables simply devide
-dependent variable `depvar` by independent variables `frontiers`.
-Then set 0.1 to be the default initial condition for all the other parameters.
+This function are used by the method `sfmodel_fit` to set the initial condition for 
+coefficient of explanatory variables. 
+The procedure is first calculating the ols estimator for `frontiers` through `olsinfo` and 
+then set 0.1 to be the default initial condition for all the other parameters.
 
-This function are used by the method `sfmodel_fit()` and don't export
 """
-
 function initial_condition(frontiers, depvar, init::Vector, nofx, nofobs, noffixed; kargs...)
     _, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
@@ -187,17 +186,9 @@ function sfmodel_fit(;spec,
         nofparam=numberofparam(model), paramnames=get_paramname(model)[:, 1]
     )
 
-    # mle estimation
-    if options[:verbose]
-        modelinfo(model)  # print some model information
-        if isa(options[:warmstart_solver], Tuple{})
-            printstyled("\n * optimization \n\n", color=:yellow)
-        else
-            printstyled("\n * optimization(with warmstart) \n\n", color=:yellow)
-        end
-    end
-
+    options[:verbose] && modelinfo(model)
     _Hessian, ξ, warmup_opt, main_opt = mle(model, data, options, startpt)
+    opt_detail = isnothing(warmup_opt) ? (main_opt,) : (main_opt, warmup_opt)
     
     # output the mle optimiazation results
     diagonal = post_estimation( _Hessian, ξ)  # diagonostic
@@ -228,7 +219,7 @@ function sfmodel_fit(;spec,
         printstyled("*********************************\n\n"; color=:cyan)
     end  # end if options[:verbose]
 
-    res = sfresult(ξ, model, data, options, jlms, bc, loglikelihood)
+    res = sfresult(ξ, model, data, options, jlms, bc, loglikelihood, opt_detail)
 
     return res
 end

@@ -12,7 +12,7 @@ function _marg_data(model::SFmodel, args...)
     _data = begin
         length(args) == 0 ? 
             [unpack(distof(model))...] : 
-            [unpack(distof(model))..., unpack(model, args...)]
+            [unpack(distof(model))..., unpack(model, args...)...]
     end
     var_nums = Vector{Int}([numberofvar(i) for i in _data])
     data = reduce(hcat, _data)

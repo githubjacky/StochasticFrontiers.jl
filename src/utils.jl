@@ -468,7 +468,7 @@ end
 Print some customized model information(before optimization process)
 """
 function _modelinfo(modelinfo1, modelinfo2)
-    printstyled("\n * Model specification\n\n", color=:yellow)
+    printstyled("\n * Model specification\n\n", color=:cyan)
     println("    $(modelinfo1)\n")  # name of model
     println("$(modelinfo2)")  # some customized information
 end
@@ -634,6 +634,7 @@ To calculate the number of observations.
 numberofobs(m::AbstractMatrix) = size(m, 1)
 numberofobs(v::AbstractVector) = length(v)
 numberofobs(a::AbstractData) = getproperty(a, :nofobs)
+
 
 """
     unpack(A, args...)
