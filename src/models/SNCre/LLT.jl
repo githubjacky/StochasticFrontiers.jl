@@ -85,7 +85,7 @@ function dema(porc, simulate_ϵ, Eη, q, theta)
     panelized_simulate_ϵ = Panelized(simulate_ϵ)
     simulate_η = Vector(undef, numberofi(simulate_ϵ))
     @inbounds for i = eachindex(panelized_simulate_ϵ)
-        T, R = nofobs(panelized_simulate_ϵ[i])
+        T, R = numberofobs(panelized_simulate_ϵ[i])
         ηᵢ = Matrix(undef, T+q, R)
         ηᵢ[begin:q, :] .= Eη[i]
         for j = q+1:T+q
@@ -105,7 +105,7 @@ end
 
 function eta(porc, serialcorr::MA, simulate_ϵ, η_param)
     @inbounds Εη = mean.([
-        uncondU(η_param[2], dist_dataᵢ..., η_param[4])
+        unconditional_mean(η_param[2], dist_dataᵢ..., η_param[4])
         for dist_dataᵢ in zip([Panelized(i) for i in η_param[3]]...)
     ])
     simulate_η = dema(porc, simulate_ϵ, Εη, lagparam(serialcorr) , η_param[1])
@@ -127,7 +127,7 @@ function eta(porc, serialcorr::ARMA, simulate_ϵ, η_param)
     dear = base - ar_factor
 
     @inbounds Εη = mean.([
-        uncondU(η_param[2], dist_dataᵢ..., η_param[4])
+        unconditional_mean(η_param[2], dist_dataᵢ..., η_param[4])
         for dist_dataᵢ in zip([Panelized(i) for i in η_param[3]]...)
     ])
     simulate_η = dema(porc, dear, Εη, q, θ)

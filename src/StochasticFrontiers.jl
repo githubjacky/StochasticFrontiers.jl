@@ -8,7 +8,7 @@ export
     usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI, plot_inefficieny,
     sfmaximizer, sfmodel, sfdata, sfoptions, sf_inefficiency, sf_efficiency, sfmaximum
 # export general distribution assumption and economic type
-export Half, half, h, Trun, trun, t, Expo, expo, e
+export Half, half, Trun, trun, Expo, expo
 
 # export model specific data type
 export AR, MA, ARMA  # SNCre
@@ -22,7 +22,7 @@ import DataStructures: OrderedDict
 import NLSolversBase: hessian!
 import PrettyTables: pretty_table, ft_printf
 import HypothesisTests: pvalue
-import StatsFuns: normpdf, normcdf, normlogpdf, normlogcdf
+import StatsFuns: normpdf, normcdf, normlogpdf, normlogcdf, log2π
 import Polynomials: fromroots, coeffs
 import RowEchelon: rref_with_pivots
 import ForwardDiff: gradient

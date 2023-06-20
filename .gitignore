@@ -1,9 +1,13 @@
 /Manifest.toml
 
-# personal test
-
-# test data
 examples/data/
+test/data/
 
+ref/
+dev/
+
+examples/.ipynb_checkpoints/
+
+.jupyter/
 
 .DS_Store

@@ -13,10 +13,14 @@ end
 
 
 """
-    _marg_data(model::SFmodel)
+    _marg_data(model::SFmodel, args...)
 
-This is the template of getting the marginal effect data and also the number of 
-variables for each component
+This is the template of getting the marginal effect data and also the number of variables 
+for each component.
+
+This template funciton will first select all the distribuiton data. For instance, (μ, σᵤ²) 
+in Truncated Normal and (σᵤ²,) in Half Nomral. Then, the data in `args` will be included.
+
 """
 function _marg_data(model::SFmodel, args...)
     _data = [
@@ -31,20 +35,49 @@ end
 
 
 """
+    _marginal_coeff(::SFmodel, ξ, ψ)
+
+This is the template of getting the coefficients of distribution. Notice that it's not
+suitalbe for some models such as those have scaling property.
+
+"""
+_marginal_coeff(::Type{<:SFmodel}, ξ, ψ) = slice(ξ, ψ, mle=true)[2]
+
+
+"""
+    _marginal_label(model, k)
+
+Tis is the template of getting the names of marginal effect, which is exogenous variables
+of the distribution, and k is the number of variables of `frontiers`.
+
+"""
+function _marginal_label(model, k)
+    var_num = sum(numberofvar.(unpack(distof(model))))
+    beg_label  = k + 1
+    en_label   = beg_label + var_num - 1
+    label      = get_paramname(model)[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
+
+    return label
+end
+
+
+"""
     clean_marginaleffect(m::Matrix{<:Any}, labels::Vector{Symbol})
 
 To drop the constant and duplicated marginal effect
 """
 function clean_marginaleffect(m, labels)
     unique_label = unique(labels)
-    pos = Dict([(i, findall(x->x==i, labels)) for i in unique_label])
-    id = Dict([(i, pos[i][1]) for i in unique_label])
-    count = Dict([(i, length(pos[i])) for i in unique_label])
-    drop = []
+    pos          = Dict([(i, findall(x->x==i, labels)) for i in unique_label])
+    id           = Dict([(i, pos[i][1]) for i in unique_label])
+    count        = Dict([(i, length(pos[i])) for i in unique_label])
+    drop         = []
+
     @inbounds for (i, label) in enumerate(labels)
         # task1: drop the constant columns
         if length(unique(m[:, i])) == 1
             append!(drop, i)
+            # println("constant columns: drop $(label)")
             count[label] -= 1
             if i == id[label] && count[label] != 0
                 id[label] = pos[label][1+(length(pos[label])-count[label])]
@@ -55,6 +88,7 @@ function clean_marginaleffect(m, labels)
         if i != id[label]
             tar = id[label]
             m[:, tar] = m[:, tar] + m[:, i]
+            # println("duplicated columns: drop $(label)")
             append!(drop, i)
             count[label] -= 1
         end
@@ -65,6 +99,7 @@ function clean_marginaleffect(m, labels)
 end
 
 
+
 """
     marginaleffect(ξ::Vector{<:Real}, model::SFmodel, data::AbstractData)
 
@@ -72,11 +107,8 @@ Calculate the marginal effect of the unconditional mean in an individual level
 """
 function marginaleffect(ξ, model, data)
     marg_data, var_nums = marginal_data(model)
-    var_num = sum(var_nums)
 
-    beg_label = numberofvar(frontier(data)) + 1
-    en_label = beg_label + var_num - 1
-    label = get_paramname(model)[beg_label:en_label, 2]  # use the varmat to get the column name of datafrae
+    label = marginal_label(model, numberofvar(frontier(data)))
 
     model_type = typeof(model)
     marg_coeff = marginal_coeff(model_type, ξ, get_paramlength(model))
@@ -88,8 +120,9 @@ function marginaleffect(ξ, model, data)
             marg_data[i, :]
         )
     end
-    mm, label = clean_marginaleffect(mm, label)  # drop the duplicated and constant columns
-    considx = findfirst(x->x==:_cons, label)  # drop the constant's marginal effect
+
+    mm, label = clean_marginaleffect(mm, label)      # drop the duplicated and constant columns
+    considx   = findfirst(x -> x == :_cons, label)   # drop the constant's marginal effect
     mm, label = mm[begin:end, Not(considx)], label[Not(considx)]
 
     return mm, label
@@ -126,17 +159,17 @@ function sfCI(
 
     z1 = quantile(Normal(), level/2)
     z2 = quantile(Normal(), 1 - level/2)  #! why z1 != z2?
-    ci = Vector{NTuple{2, float(Int)}}(undef, nofK)
+    ci = Vector{Vector{float(Int)}}(undef, nofK)
     @inbounds for i = 1:nofK
-        data = bootdata[:,i]
-        count = sum(data .< observed[i])
-        z0 = quantile(Normal(), count/nofobs) # bias corrected factor
-        alpha1 = cdf(Normal(), z0 + ((z0 + z1) ))
-        alpha2 = cdf(Normal(), z0 + ((z0 + z2) ))
+        data       = bootdata[:,i]
+        count      = sum(data .< observed[i])
+        z0         = quantile(Normal(), count/nofobs) # bias corrected factor
+        alpha1     = cdf(Normal(), z0 + ((z0 + z1) ))
+        alpha2     = cdf(Normal(), z0 + ((z0 + z2) ))
         order_data = sort(data)
-        cilow = order_data[Int(ceil(nofobs*alpha1))]
-        ciup = order_data[Int(ceil(nofobs*alpha2))]
-        ci[i] = (round(cilow, digits=5), round(ciup, digits=5))
+        cilow      = order_data[Int(ceil(nofobs*alpha1))]
+        ciup       = order_data[Int(ceil(nofobs*alpha2))]
+        ci[i]      = [round(cilow, digits=5), round(ciup, digits=5)]
     end
     verbose && println("\nBias-Corrected $(100*(1-level))% Confidence Interval:\n")
 
@@ -161,14 +194,14 @@ resampling(rng::AbstractRNG, nobs) = sample(rng, 1:nobs, nobs; replace=true)
 Main method for bootstrap marginal effect
 - 
 """
-function bootstrap_marginaleffect(
-    result::sfresult;
-    R::Int=500, 
-    level=0.05,
-    iter::Int=-1,
-    getBootData=false,
-    seed::Int=-1,
-    verbose=true)
+function bootstrap_marginaleffect(result::sfresult;
+                                  R::Int      = 500, 
+                                  level       = 0.05,
+                                  iter::Int   = -1,
+                                  getBootData = false,
+                                  seed::Int   = -1,
+                                  verbose     =true
+                                  )
     # check some requirements of data
     ((level > 0.0) && (level < 1.0)) || throw("The significance level (`level`) should be between 0 and 1.")
     level > 0.5 && (level = 1-level)  # 0.95 -> 0.05
@@ -184,22 +217,26 @@ function bootstrap_marginaleffect(
     # options[:warmstart_solver] = nothing
 
     obs_mm, marg_label = marginaleffect(maximizer, model, data)
-    obs_marg_mean = mean(obs_mm, dims=1)
-    p = Progress(R, desc="Resampling: ", color=:white, barlen=30)
-    printstyled(" * bootstrap marginanl effect\n\n", color=:yellow)
-    sim_res, i = Matrix{Float64}(undef, R, size(obs_marg_mean, 2)), 0
+    obs_marg_mean      = mean(obs_mm, dims=1)
+
+    p = verbose ? 
+        Progress(R, desc="Resampling: ", color=:white, barlen=30) :
+        Progress(R, desc="Resampling: ", color=:white, barlen=30, enabled=false)
+
+    verbose && printstyled(" * bootstrap marginanl effect\n\n", color=:yellow)
+    sim_res, i = Matrix{float(Int)}(undef, R, size(obs_marg_mean, 2)), 0
     @inbounds for i = 1:R
         @label start1
-        selected_row = resampling(rng, numberofobs(data))
-        bootstrap_data = data(selected_row)
+        selected_row    = resampling(rng, numberofobs(data))
+        bootstrap_data  = data(selected_row)
         bootstrap_model = model(selected_row, bootstrap_data)
         
         Hessian, ξ, _, main_opt = mle(bootstrap_model, bootstrap_data, options, maximizer)
-        if Optim.iteration_limit_reached(main_opt) || 
-           isnan(Optim.g_residual(main_opt)) ||  
-           Optim.g_residual(main_opt) > 1e-1
-               @goto start1
-        end
+
+        cond1 = Optim.iteration_limit_reached(main_opt)
+        cond2 = isnan(Optim.g_residual(main_opt))  
+        cond3 = Optim.g_residual(main_opt) > 1e-1
+        (cond1 || cond2 || cond3) && (@goto start1)
 
         numerical_hessian = hessian!(Hessian, ξ)
         var_cov_matrix = try
@@ -228,20 +265,26 @@ function bootstrap_marginaleffect(
 
     if verbose
         table_content = hcat(marg_label, obs_marg_mean', theSTD, ci_mat)
-        table = [" "  "mean of the marginal"  "std.err. of the"   "bias-corrected"; 
-                 " "  "effect on E(u)"        "mean effect"       "$(100*(1-level))%  conf. int.";
-                 table_content]
+        header = [
+            " "  "mean of the marginal"  "std.err. of the"   "bias-corrected"; 
+            " "  "effect on E(u)"        "mean effect"       "$(100*(1-level))%  conf. int.";
+        ]
+        table = vcat(header, table_content)
         pretty_table(
             table,
-            noheader=true,
-            body_hlines = [2],
-            formatters = ft_printf("%0.5f", 2:4),
+            noheader         = true,
+            body_hlines      = [2],
+            formatters       = ft_printf("%0.5f", 2:4),
             compact_printing = true,
-            backend = Val(result.options[:table_format])
+            backend          = Val(result.options[:table_format])
         )
         println()
     end
-    getBootData ? (return hcat(theSTD, ci_mat), sim_res) : (return hcat(theSTD, ci_mat))
+
+    res    = hcat(theSTD, ci_mat)
+    output = getBootData ? (res, sim_res) : res
+
+    return output
 end
 
 

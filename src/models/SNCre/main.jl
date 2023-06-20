@@ -117,7 +117,7 @@ end
 
 
 """
-    sfspec(::Type{SNCre}, <arguments>; type, dist, σᵥ², ivar, depvar, frontiers, SCE, R, σₑ²)
+    sfspec(::Type{SNCre}, <arguments>; type, dist, σᵥ², ivar, depvar, frontiers, SCE, R, σₑ², verbose)
 
 The model: 
 
@@ -133,9 +133,14 @@ The model:
 - `R::Int`: number of correlated random effect simulation
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
 """
-function sfspec(::Type{SNCre}, data...; type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ²)
+function sfspec(::Type{SNCre}, data...; 
+                type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ², 
+                verbose=true
+               )
     # get the base variables and set up σₑ²
-    paneldata, fitted_dist, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
+    paneldata, fitted_dist, _col1, _col2 = getvar(
+        data, ivar, type, dist, σᵥ², depvar, frontiers, verbose
+    )
     @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
     
     # generate the mean data of frontiers for the specification of correlated random effect

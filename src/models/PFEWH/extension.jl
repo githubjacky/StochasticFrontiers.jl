@@ -1,14 +1,17 @@
 function _jlmsbc(::Type{PFEWH{Trun{S, U}, V, W, X}}, σᵥ², μ, σᵤ², ϵ̃, h) where{S, U, V, W, X}
-    N = sum(numberoft(ϵ̃))
-    jlms, bc = zeros(N), zeros(N)
-    h̃ = sf_demean(h)
-    @floop for i in eachindex(ϵ̃[:, 1], h, h̃)
-        σₛₛ² = 1.0 / (h̃[i]^2*(1/σᵥ²) + 1/σᵤ²)  # h̃ is already de-meaned, so skip Π⁻ but mind 1/σᵥ² # 1.0/(h̃'*Π⁻*h̃ + 1/σᵤ²)  
-        σₛₛ  = sqrt(σₛₛ²)
-        μₛₛ = (μ/σᵤ² - ϵ̃[i]*h̃[i]*(1/σᵥ²)) * σₛₛ² # (μ/σᵤ² - ϵ̃[ind]'*Π⁻*h̃) * σₛₛ²
+    N    = sum(numberoft(ϵ̃))
+    jlms = zeros(N)
+    bc   = zeros(N)
+    h̃    = sf_demean(h)
 
-        jlms[i] = h[i] * (μₛₛ + normpdf(μₛₛ/σₛₛ)*σₛₛ/normcdf(μₛₛ/σₛₛ))
-        bc[i] = ((normcdf(μₛₛ/σₛₛ-h[i]*σₛₛ)) / normcdf(μₛₛ/σₛₛ)) * exp(-h[i]*μₛₛ + 0.5*(h[i]^2)*σₛₛ²)
+    @floop for (ϵ̃ᵢ, h̃ᵢ, hᵢ, idx) in zip(Panelized(ϵ̃), Panelized(h̃), Panelized(h), h.rowidx)
+        σₛₛ² = 1.0 / ( h̃ᵢ' * h̃ᵢ * (1/σᵥ²) + 1/σᵤ² )
+        σₛₛ  = sqrt(σₛₛ²)
+        μₛₛ  = ( μ/σᵤ² - ϵ̃ᵢ' * h̃ᵢ * (1/σᵥ²) ) * σₛₛ²
+
+        jlms[idx] = @. hᵢ * ( μₛₛ + normpdf(μₛₛ/σₛₛ) * σₛₛ / normcdf(μₛₛ/σₛₛ) )
+        bc[idx]   = @. ( (normcdf(μₛₛ/σₛₛ-hᵢ*σₛₛ)) / normcdf(μₛₛ/σₛₛ) ) * 
+                       exp( -hᵢ * μₛₛ + 0.5 * (hᵢ^2) * σₛₛ² )
     end
 
     return jlms, bc
@@ -30,21 +33,41 @@ function jlmsbc(ξ, model::PFEWH, data::PanelData)
    return jlms, bc
 end
 
-marginal_data(model::PFEWH) = _marg_data(model, :hscale)
+
+marginal_data(model::PFEWH)                                       = _marg_data(model, :hscale)
 marginal_coeff(::Type{PFEWH{T, S, U, V}}, ξ, ψ) where{T, S, U, V} = slice(ξ, ψ, mle=true)[[2, 4]]
+function marginal_label(model::PFEWH, k)
+    dist_var_num = sum(numberofvar.(unpack(distof(model))))
+    beg_dist     = k + 1
+    en_dist      = beg_dist + dist_var_num - 1
 
-function unconditional_mean(::Type{PFEWH{Trun{S, U}, V, W, X}}, coeff, μ, log_σᵤ², log_h) where {S, U, V, W, X}
+    _label = get_paramname(model)[:, 2]
+    label  = _label[union( 
+        beg_dist:en_dist, 
+        (length(_label) - numberofvar(model.hscale) + 1):length(_label) 
+    )]  
+
+    return label
+end
+
+function unconditional_mean(::Type{PFEWH{Trun{S, U}, V, W, X}}, 
+                            coeff, 
+                            μ, 
+                            log_σᵤ², 
+                            log_h
+                            ) where {S, U, V, W, X}
+
     Wμ = μ == zeros(1) ? zeros(1) : coeff[1][begin:begin+length(μ)-1]
-    Wᵤ, Wₕ = coeff[1][end-length(log_σᵤ²)+1:end], coeff[2]
-    μ = μ' * Wμ
+    Wᵤ = coeff[1][end-length(log_σᵤ²)+1:end]
 
-    log_h = log_h' * Wₕ
+    log_h   = log_h' * coeff[2]
+
+    μ  = exp(log_h) * (μ' * Wμ)
     σᵤ = exp(log_h + 0.5 * log_σᵤ²' * Wᵤ)
-    μ = exp(log_h) * μ
     Λ = μ / σᵤ
-    res = σᵤ * (Λ + normpdf(Λ) / normcdf(Λ))
+    uncondU = σᵤ * ( Λ + normpdf(Λ) / normcdf(Λ) )
 
-    return res
+    return uncondU
 end
 
 function unconditional_mean(::Type{PFEWH{Half{S}, U, V, W}}, coeff, log_σᵤ², log_h) where {S, U, V, W}

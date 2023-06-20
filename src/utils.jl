@@ -38,12 +38,12 @@ Base.convert(::Type{Matrix}, a::Vector) = reshape(a, length(a), 1)
 """
     readframe(ind::Symbol; df::DataFrame)
     readframe(ind::Tuple{Vararg{Symbol}}; df::DataFrame)
-    readframe(ind::Array; df::Tuple{})
+    readframe(ind::Array; kwargs...)
 
 *optional utility function*
 
 Read in data from data frame and convert it to Matrix. Besides, if it's matrix data,
-only convert to matrix.(optional utils)
+only convert to matrix
 
 # Examples
 ```juliadoctest
@@ -98,7 +98,7 @@ See also: [`convert`](@ref)
 """
 readframe(ind::Symbol; df::DataFrame) = convert(Matrix, Base.getindex(df, :, ind))
 readframe(ind::NTuple{N, Symbol}; df::DataFrame) where N = hcat([Base.getindex(df, :, i) for i in ind]...)
-readframe(ind::Array; df::Tuple{}) = convert(Matrix, ind)
+readframe(ind::Array; kwargs...) = convert(Matrix, ind)
 
 
 """
@@ -229,6 +229,7 @@ function paramname_col2(frontiers::Tuple, dist_props::Tuple, σᵥ²::Union{Symb
     return col2
 end
 
+
 function paramname_col2(frontiers::AbstractMatrix, dist_props::Tuple, σᵥ²::AbstractArray)
     col2 = Vector{Vector{Symbol}}(undef, 50)
     en = length(dist_props) + 2
@@ -259,7 +260,7 @@ end
 
 Complete the template `base` with `add`
 
-#Examples
+# Examples
 ```juliadoctest
 julia> base = paramname_col1(fieldnames(Trun))
 50-element Vector{Symbol}:
@@ -394,7 +395,9 @@ function getvar(data::Tuple,
                  _dist::Tuple,
                  _σᵥ²::Union{Array, Union{Symbol, Tuple}},
                  _depvar::Union{Array, Symbol},
-                 _frontiers::Union{Matrix, Tuple})
+                 _frontiers::Union{Matrix, Tuple},
+                 verbose = true
+                )
     
     # readin the data in Matrix form
     df = isa(data, Tuple{DataFrame}) ? data[1] : data
@@ -403,9 +406,9 @@ function getvar(data::Tuple,
     σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
 
     # check multicollinearity
-    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
-    fitted_dist, _ = isMultiCollinearity(fitted_dist)
-    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
+    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers, verbose)
+    fitted_dist, _ = isMultiCollinearity(fitted_dist, verbose)
+    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ², verbose)
 
     # creat parameters' names of the output estimation table
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
@@ -420,7 +423,9 @@ function getvar(data::Tuple,
                 _dist::Tuple,
                 _σᵥ²::Union{Array, Symbol, Tuple},
                 _depvar::Union{Array, Symbol},
-                _frontiers::Union{Matrix, Tuple})
+                _frontiers::Union{Matrix, Tuple},
+                verbose = true
+                )
     # readin the data in Matrix form
     if isa(data, Tuple{DataFrame})
         df = data[1]
@@ -443,9 +448,9 @@ function getvar(data::Tuple,
     )
 
     # check multicollinearity
-    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers)
-    fitted_dist, _ = isMultiCollinearity(fitted_dist)
-    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ²)
+    frontiers, _,  = isMultiCollinearity(:frontiers, frontiers, verbose)
+    fitted_dist, _ = isMultiCollinearity(fitted_dist, verbose)
+    σᵥ², _ = isMultiCollinearity(:σᵥ², σᵥ², verbose)
 
     # creat parameters' names of the output estimation table
     col1 = paramname_col1(fieldnames(dist_type))  # generate the parameters' names for making estimation table
@@ -480,30 +485,32 @@ Two method to check the Multicollinearity, for the usage of either matrix or pan
 The first element of return tuple is non-multicollinearity matrix and the second
 is indices of pivot columns
 """
-function isMultiCollinearity(name::Symbol, themat)
+function isMultiCollinearity(name::Symbol, themat, verbose=true)
     colnum = size(themat, 2)
     colnum == 1 && return themat, 1
     pivots = rref_with_pivots(themat)[2]
     if length(pivots) != colnum
-        printstyled("\n * Find Multicollinearity\n\n", color=:red)
-        for j in filter(x->!(x in pivots), 1:colnum)
-            println("    number $j column in $(name) is dropped")
+        if verbose
+            printstyled("\n * Find Multicollinearity\n\n", color=:red)
+            for j in filter(x->!(x in pivots), 1:colnum)
+                println("    number $j column in $(name) is dropped")
+            end
         end
         return themat[:, pivots], pivots
     end
     return themat, pivots
 end
 
-function isMultiCollinearity(name::Symbol, _themat::AbstractPanel)
-    themat, pivots = isMultiCollinearity(name , _themat.data)
+function isMultiCollinearity(name::Symbol, _themat::AbstractPanel, verbose=true)
+    themat, pivots = isMultiCollinearity(name , _themat.data, verbose)
     return Panel(themat, _themat.rowidx), pivots
 end
 
-function isMultiCollinearity(_d::AbstractDist)
+function isMultiCollinearity(_d::AbstractDist, verbose=true)
     name = fieldnames(typeof(_d))
     _themat = unpack(_d)
 
-    res = isMultiCollinearity.(name, _themat)
+    res = isMultiCollinearity.(name, _themat, verbose)
     themat, pivots = zip(res...)
     d = typeof(_d)(themat...)
 
@@ -609,6 +616,7 @@ end
 
 *optional utility function*
 
+
 Used to check the number of explanatory variables.
 """
 numberofvar(m::AbstractVecOrMat) = size(m, 2)
@@ -626,7 +634,6 @@ To calculate the number of observations.
 numberofobs(m::AbstractMatrix) = size(m, 1)
 numberofobs(v::AbstractVector) = length(v)
 numberofobs(a::AbstractData) = getproperty(a, :nofobs)
-
 
 """
     unpack(A)

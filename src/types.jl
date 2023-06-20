@@ -26,7 +26,6 @@ const cost = Cost
 Base.:*(::Type{Prod}, a) = a
 Base.:*(::Type{Cost}, a) = -a
 
-
 """
     tnumTorowidx(tnum::Vector{Int})
 
@@ -422,7 +421,7 @@ function (s::AbstractDist)(x...)
 end
 
 
-struct Half{T<:AbstractVecOrMat} <: AbstractDist
+struct Half{T<:AbstractArray} <: AbstractDist
     σᵤ²::T
 end
 
@@ -438,7 +437,7 @@ function (s::Half)(x::Vector)
 end
 
 
-struct Trun{T<:AbstractVecOrMat, S<:AbstractVecOrMat}  <: AbstractDist
+struct Trun{T<:AbstractArray, S<:AbstractArray}  <: AbstractDist
     μ::T
     σᵤ²::S
 end
@@ -457,7 +456,7 @@ function (s::Trun)(x::Vector)
 end
 
 
-struct Expo{T<:AbstractVecOrMat} <: AbstractDist
+struct Expo{T<:AbstractArray} <: AbstractDist
     λ::T
 end
 
@@ -479,7 +478,8 @@ abstract type AbstractData end
 struct Data{T<:DataType,
             U<:AbstractMatrix,
             V<:AbstractMatrix,
-            W<:AbstractMatrix} <: AbstractData
+            W<:AbstractMatrix
+           } <: AbstractData
     econtype::T
     σᵥ²::U
     depvar::V
@@ -503,10 +503,10 @@ struct PanelData{T<:DataType,
 end
 
 # API to get the property of `AbstractData` more effieciet
-get_rowidx(a::PanelData) = getproperty(a, :rowidx)
-variance(a::AbstractData) = getproperty(a, :σᵥ²)
+get_rowidx(a::PanelData)      = getproperty(a, :rowidx)
+variance(a::AbstractData)     = getproperty(a, :σᵥ²)
 dependentvar(a::AbstractData) = getproperty(a, :depvar)
-frontier(a::AbstractData) = getproperty(a, :frontiers)
+frontier(a::AbstractData)     = getproperty(a, :frontiers)
 
 numberofi(a::PanelData) = length(getproperty(a, :rowidx))
 numberoft(a::PanelData) = length.(getproperty(a, :rowidx))
@@ -551,10 +551,10 @@ end
 
 
 # API
-sfmaximizer(a::sfresult) = getproperty(a, :ξ)
-sfmodel(a::sfresult) = getproperty(a, :model)
-sfdata(a::sfresult) = getproperty(a, :data)
-sfoptions(a::sfresult) = getproperty(a, :options)
+sfmaximizer(a::sfresult)     = getproperty(a, :ξ)
+sfmodel(a::sfresult)         = getproperty(a, :model)
+sfdata(a::sfresult)          = getproperty(a, :data)
+sfoptions(a::sfresult)       = getproperty(a, :options)
 sf_inefficiency(a::sfresult) = getproperty(a, :jlms)
-sf_efficiency(a::sfresult) = getproperty(a, :bc)
-sfmaximum(a::sfresult) = getproperty(a, :loglikelihood)
+sf_efficiency(a::sfresult)   = getproperty(a, :bc)
+sfmaximum(a::sfresult)       = getproperty(a, :loglikelihood)

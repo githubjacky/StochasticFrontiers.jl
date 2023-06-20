@@ -8,6 +8,7 @@ function jlmsbc(ξ, model::Cross, data::Data)
    return jlms, bc
 end
 
-marginal_data(model::Cross) = _marg_data(model)
-marginal_coeff(::Type{Cross{T}}, ξ, ψ) where T = slice(ξ, ψ, mle=true)[2]
+marginal_data(model::Cross)                                  = _marg_data(model)
+marginal_coeff(model_type::Type{Cross{T}}, ξ, ψ) where T     = _marginal_coeff(model_type, ξ, ψ)
+marginal_label(model::Cross, k)                              = _marginal_label(model, k)
 unconditional_mean(::Type{Cross{T}}, coeff, args...) where T = _unconditional_mean(T, coeff, args...)

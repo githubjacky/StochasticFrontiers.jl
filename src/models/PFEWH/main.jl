@@ -27,7 +27,7 @@ end
 function (a::PFEWH)(selected_row, paneldata)
     rowidx, depvar, frontiers = unpack(paneldata, (:rowidx, :depvar, :frontiers))
     bootstrap_model = PFEWH(
-        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
+        typeofdist(a)([Panel(i[selected_row, :], rowidx) for i in unpack(distof(a))]...),
         sf_demean(depvar),
         sf_demean(frontiers),
         Panel(a.hscale[selected_row, :], rowidx),
@@ -39,9 +39,14 @@ function (a::PFEWH)(selected_row, paneldata)
 end
 
 
-function sfspec(::Type{PFEWH}, data...; type, dist, σᵥ², ivar, depvar, frontiers, hscale)
+function sfspec(::Type{PFEWH}, data...; 
+                type, dist, σᵥ², ivar, depvar, frontiers, hscale, 
+                verbose=true
+               )
     # get the base vaiables
-    paneldata, fitted_dist, _col1, _col2 = getvar(data, ivar, type, dist, σᵥ², depvar, frontiers)
+    paneldata, fitted_dist, _col1, _col2 = getvar(
+        data, ivar, type, dist, σᵥ², depvar, frontiers, verbose
+    )
 
     # get hscale and demean data 
     df = length(data) != 0 ? data[1] : data

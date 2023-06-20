@@ -85,7 +85,7 @@ function _likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
         μₛ = (σᵥ²[i]*μ[i] - σᵤ²[i]*ϵ[i]) / σ²
-        res[i] = trunpdf(σ, σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
+        res[i] = trunpdf(sqrt(σ²), σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
     end
     
     return res
@@ -123,7 +123,7 @@ function _loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         llhᵢ = halflogpdf(σ², ϵ[i], μₛ, σₛ²)
-        @reduce llh += llhᵢ
+        @reduce llh = 0 + llhᵢ
     end
 
     return llh
@@ -136,7 +136,7 @@ function _loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
         σᵤ = sqrt(σᵤ²[i])
         μₛ  = (σᵥ²[i] * μ[i] - σᵤ²[i] * ϵ[i]) / σ²
         llhᵢ = trunlogpdf(σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
-        @reduce llh += llhᵢ
+        @reduce llh = 0 + llhᵢ
     end
     
     return llh
@@ -147,7 +147,7 @@ function _loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         llhᵢ = expologpdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
-        @reduce llh += llhᵢ
+        @reduce llh = 0 + llhᵢ
     end
 
     return llh

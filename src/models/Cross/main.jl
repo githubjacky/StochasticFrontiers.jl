@@ -25,7 +25,7 @@ end
 
 
 """
-    sfspec(::Type{Cross}, <arguments>; type, dist, σᵥ², depvar, frontiers)
+    sfspec(::Type{Cross}, <arguments>; type, dist, σᵥ², depvar, frontiers, verbose)
 
 The model: 
 
@@ -41,9 +41,11 @@ The model:
 - `R::Int`: number of correlated random effect simulation
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
 """
-function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers)
+function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers, verbose=true)
     # get the base vaiables
-    crossdata, fitted_dist, _col1, _col2 = getvar(data, type, dist, σᵥ², depvar, frontiers)
+    crossdata, fitted_dist, _col1, _col2 = getvar(
+        data, type, dist, σᵥ², depvar, frontiers, verbose
+    )
    
     # construct remaind first column of output estimation table
     col1 = complete_template(_col1)
