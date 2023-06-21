@@ -148,6 +148,11 @@ function output_estimation(nofobs, warm_opt, main_opt)
     iter = warm_opt === nothing ? opt.iterations(main_opt) : (opt.iterations(main_opt) + opt.iterations(warm_opt))
     loglikelihood = round(-1*opt.minimum(main_opt); digits=5)
 
+    converge = string(opt.g_converged(main_opt))
+    if opt.iterations(main_opt) == 0 && converge == "true" 
+        converge = "false (saddle point)"
+    end
+
     printstyled("*********************************\n "; color=:cyan)
     printstyled("       Estimation Results \n"; color=:cyan); 
     printstyled("*********************************\n\n"; color=:cyan)
@@ -155,7 +160,14 @@ function output_estimation(nofobs, warm_opt, main_opt)
     println(" Log-likelihood Value:       $loglikelihood")
     println(" Time Consuming:             $(opt.time_run(main_opt))")
     println("")
-    println(" Converged:                  $(opt.converged(main_opt))")
+
+    print(" Converged:                  ")
+    if converge == "true"
+        print("$(converge)\n")
+    else
+        printstyled("$(converge)\n"; color=:red)
+    end
+
     println(" Number Of Total Iterations: $iter")
     println(" Iteration Limit Reached:    $(opt.iteration_limit_reached(main_opt))")
     println("")
