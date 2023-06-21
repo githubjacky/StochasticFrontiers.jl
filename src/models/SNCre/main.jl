@@ -99,7 +99,7 @@ number 3 column in xmean is dropped
 5.5  1.5
 ```
 """
-function meanofx(frontiers)
+function meanofx(frontiers, verbose)
     mean_frontiers = mean.(Panelized(frontiers), dims=1)
     noft = numberoft(frontiers)
     _xmean = [repeat(i,t) for (i,t) in zip(mean_frontiers, noft)]
@@ -110,7 +110,7 @@ function meanofx(frontiers)
     # `real` ensure the element type is not any which will raise error in `rref_with_pivots`
     # `reduce` for fast `hcat` operation
     xmean, pivots = isMultiCollinearity(
-        :xmean, real(reduce(hcat, (xmean, cons)))
+        :xmean, real(reduce(hcat, (xmean, cons))), verbose
     )
     return Panel(xmean, frontiers.rowidx), pivots
 end
@@ -144,7 +144,7 @@ function sfspec(::Type{SNCre}, data...;
     @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
     
     # generate the mean data of frontiers for the specification of correlated random effect
-    xmean, pivots = meanofx(paneldata.frontiers)
+    xmean, pivots = meanofx(paneldata.frontiers, verbose)
     
     # construct remaind first column of output estimation table
     corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))

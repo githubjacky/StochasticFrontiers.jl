@@ -501,7 +501,7 @@ Two method to check the Multicollinearity, for the usage of either matrix or pan
 The first element of return tuple is non-multicollinearity matrix and the second
 is indices of pivot columns
 """
-function isMultiCollinearity(name::Symbol, themat, verbose=true)
+function isMultiCollinearity(name::Symbol, themat, verbose = true)
     colnum = size(themat, 2)
     colnum == 1 && return themat, 1
     pivots = rref_with_pivots(themat)[2]
@@ -517,13 +517,13 @@ function isMultiCollinearity(name::Symbol, themat, verbose=true)
     return themat, pivots
 end
 
-function isMultiCollinearity(name::Symbol, _themat::AbstractPanel, verbose=true)
+function isMultiCollinearity(name::Symbol, _themat::AbstractPanel, verbose = true)
     themat, pivots = isMultiCollinearity(name , _themat.data, verbose)
     return Panel(themat, _themat.rowidx), pivots
 end
 
-function isMultiCollinearity(_d::AbstractDist, verbose=true)
-    name = fieldnames(typeof(_d))
+function isMultiCollinearity(_d::AbstractDist, verbose = true)
+    name    = fieldnames(typeof(_d))
     _themat = unpack(_d)
 
     res = isMultiCollinearity.(name, _themat, verbose)
@@ -551,18 +551,18 @@ julia> dist = Half([1 2; 3 4]); isconstant(dist)
 Half{Vector{Int64}}([1])
 ```
 """
-function isconstant(label, a; warn=false)
+function isconstant(label, a, verbose = true)
     constant = length(unique(a)) == 1 ? true : false
-    (warn && !constant) && error("the $label must be constant")
+    (verbose && !constant) && error("the $label must be constant")
 
     return a
 end
 
-function isconstant(a::AbstractDist; warn=false)
+function isconstant(a::AbstractDist, verbose = true)
     dist_type = typeof(a)
     labels = fieldnames(dist_type)
     data = unpack(a)
-    new_dist = dist_type(isconstant.(labels, data; warn=warn)...)
+    new_dist = dist_type(isconstant.(labels, data, verbose)...)
 
     return new_dist
 end

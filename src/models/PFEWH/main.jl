@@ -41,7 +41,7 @@ end
 
 function sfspec(::Type{PFEWH}, data...; 
                 type, dist, σᵥ², ivar, depvar, frontiers, hscale, 
-                verbose=true
+                verbose = true
                )
     # get the base vaiables
     paneldata, fitted_dist, _col1, _col2 = getvar(
@@ -51,8 +51,8 @@ function sfspec(::Type{PFEWH}, data...;
     # get hscale and demean data 
     df = length(data) != 0 ? data[1] : data
     h = Panel(readframe(hscale, df=df), get_rowidx(paneldata))
-    h, _ = isMultiCollinearity(:hscale, h)
-    fitted_dist = isconstant(fitted_dist; warn=false)
+    h, _ = isMultiCollinearity(:hscale, h, verbose)
+    fitted_dist = isconstant(fitted_dist, verbose)
 
     Ỹ, X̃ = sf_demean(dependentvar(paneldata)), sf_demean(frontier(paneldata))
    
