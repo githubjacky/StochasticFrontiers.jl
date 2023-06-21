@@ -39,6 +39,7 @@ sf_inefficiency(a::sfresult) = getproperty(a, :jlms)
 sf_efficiency(a::sfresult)   = getproperty(a, :bc)
 sfmaximum(a::sfresult)       = getproperty(a, :loglikelihood)
 
+
 """
 show the optimization details
 """

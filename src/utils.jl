@@ -468,11 +468,27 @@ end
 Print some customized model information(before optimization process)
 """
 function _modelinfo(modelinfo1, modelinfo2)
-    printstyled("\n * Model specification\n\n", color=:cyan)
+    printstyled("\n*********************************\n "; color=:cyan)
+    printstyled("     Model Specification      \n"; color=:cyan); 
+    printstyled("*********************************\n\n"; color=:cyan)
     println("    $(modelinfo1)\n")  # name of model
     println("$(modelinfo2)")  # some customized information
 end
 
+
+function num(a)
+    str_a = string(a)
+    check = str_a[end]
+    if check == '1'
+        return "$(str_a) st"
+    elseif check == '2'
+        return "$(str_a) nd"
+    elseif check == '3'
+        return "$(str_a) rt"
+    else
+        return "$(str_a) th"
+    end
+end
 
 """
     isMultiCollinearity(name::Symbol, themat)
@@ -493,7 +509,7 @@ function isMultiCollinearity(name::Symbol, themat, verbose=true)
         if verbose
             printstyled("\n * Find Multicollinearity\n\n", color=:red)
             for j in filter(x->!(x in pivots), 1:colnum)
-                println("    number $j column in $(name) is dropped")
+                println("    the $(num(j)) column in $(name) is dropped")
             end
         end
         return themat[:, pivots], pivots

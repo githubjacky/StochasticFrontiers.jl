@@ -169,6 +169,7 @@ There are three main process:
 3. some extension(e.g. inefficiency index, marginal effect...)
 
 See also: [`sfopt`](@ref), [`sfinit`](@ref), [`startpt`](@ref)
+
 """
 function sfmodel_fit(;spec,
                       options=nothing,
@@ -205,19 +206,21 @@ function sfmodel_fit(;spec,
         println("Table format: $(options[:table_format]). Use `sfopt(...)` to choose between `:text`, `:html`, and `:latex`.")
 
         printstyled("\n\n*********************************\n "; color=:cyan)
-        printstyled("    Additional Information:     \n"; color=:cyan); 
+        printstyled("    Additional Information     \n"; color=:cyan); 
         printstyled("*********************************\n\n"; color=:cyan)
-        println(" - OLS (frontier-only) log-likelihood: $llols")
-        println(" - Skewness of OLS residuals: $skols")
+        println(" - OLS (frontier-only) log-likelihood:             $(round(llols, digits=5))")
+        println(" - Skewness of OLS residuals:                      $(round(skols, digits=5))")
         println(" - The sample mean of the JLMS inefficiency index: $(round(mean(jlms), digits=5))")
-        println(" - The sample mean of the BC efficiency index: $(round(mean(bc), digits=5))")
-        println(" - Use `name.list` to see saved results (keys and values) where `name` is the return specified in `name = sfmodel_fit(...)`")
-        println("     - `name.loglikelihood`: the log-likelihood value of the model;")
-        println("     - `name.jlms`: Jondrow et al. (1982) inefficiency index;")
-        println("     - `name.bc`: Battese and Coelli (1988) efficiency index;")
-        println(" - Use `keys(name)` to see available keys.\n")
+        println(" - The sample mean of the BC efficiency index:     $(round(mean(bc), digits=5))")
+        println("")
+        println(" - Check out the availabel API in file: structure/API.jl")
+        println("     - `res` is the return of sfmodel_fit, `res = sfmodel_fit(...)`")
+        println("     - `sfmaximum(res)`: the log-likelihood value of the model;")
+        println("     - `sf_inefficiency(res)`: Jondrow et al. (1982) inefficiency index;")
+        println("     - `sf_efficiency(res)`: Battese and Coelli (1988) efficiency index;")
+        println(" - To see some examples, check out the folder: examples\n")
         printstyled("*********************************\n\n"; color=:cyan)
-    end  # end if options[:verbose]
+    end
 
     res = sfresult(ξ, model, data, options, jlms, bc, loglikelihood, opt_detail)
 

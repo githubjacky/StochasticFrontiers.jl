@@ -149,7 +149,7 @@ function output_estimation(nofobs, warm_opt, main_opt)
     loglikelihood = round(-1*opt.minimum(main_opt); digits=5)
 
     printstyled("*********************************\n "; color=:cyan)
-    printstyled("      Estimation Results:\n"; color=:cyan); 
+    printstyled("       Estimation Results \n"; color=:cyan); 
     printstyled("*********************************\n\n"; color=:cyan)
     println(" Numberf Of Observations:    $nofobs")
     println(" Log-likelihood Value:       $loglikelihood")

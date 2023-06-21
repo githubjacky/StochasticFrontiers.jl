@@ -9,5 +9,6 @@ dev/
 examples/.ipynb_checkpoints/
 
 .jupyter/
+.ipynb_checkpoints/
 
 .DS_Store
