@@ -8,7 +8,7 @@ This template funciton will first select all the distribuiton data. For instance
 in Truncated Normal and (σᵤ²,) in Half Nomral. Then, the data in `args` will be included.
 
 """
-function _marg_data(model::SFmodel, args...)
+function _marg_data(model::AbstractSFmodel, args...)
     _data = begin
         length(args) == 0 ? 
             [unpack(distof(model))...] : 
@@ -28,7 +28,7 @@ This is the template of getting the coefficients of distribution. Notice that it
 suitalbe for some models such as those have scaling property.
 
 """
-_marginal_coeff(::Type{<:SFmodel}, ξ, ψ) = slice(ξ, ψ, mle=true)[2]
+_marginal_coeff(::Type{<:AbstractSFmodel}, ξ, ψ) = slice(ξ, ψ, mle=true)[2]
 
 
 """

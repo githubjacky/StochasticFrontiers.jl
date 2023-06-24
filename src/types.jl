@@ -1,35 +1,33 @@
 # Stochastic Frontiers Model
 abstract type AbstractSFmodel end
-const SFmodel = AbstractSFmodel
 abstract type AbstractPanelModel <: AbstractSFmodel end
-const PanelModel = AbstractPanelModel
 
-# some API to get the properties of `<:SFmodel`
-distof(a::SFmodel) = getproperty(a, :fitted_dist)
-typeofdist(a::SFmodel) = typeof(getproperty(a, :fitted_dist))
-
-get_paramlength(a::SFmodel) = getproperty(a, :ψ)
-get_paramname(a::SFmodel) = getproperty(a, :paramnames)
-
-numberofparam(a::SFmodel) = get_paramlength(a)[end]
+# some API to get some base properties of `<:SFmodel`
+distof(a::AbstractSFmodel)          = getproperty(a, :fitted_dist)
+typeofdist(a::AbstractSFmodel)      = typeof(getproperty(a, :fitted_dist))
+get_paramlength(a::AbstractSFmodel) = getproperty(a, :ψ)
+get_paramname(a::AbstractSFmodel)   = getproperty(a, :paramnames)
+numberofparam(a::AbstractSFmodel)   = get_paramlength(a)[end]
 
 
 # economic interpredation
 abstract type AbstractEconomicType end
 struct Prod <: AbstractEconomicType end
-const prod = Prod
-const p = Prod
-
 struct Cost <: AbstractEconomicType end
+const prod = Prod
+const p    = Prod
 const cost = Cost
 
 Base.:*(::Type{Prod}, a) = a
 Base.:*(::Type{Cost}, a) = -a
 
+
 """
     tnumTorowidx(tnum::Vector{Int})
 
-Transform number of period `tnum` to `rowidx` for the construction of `Panel` or `Panelized`
+Transform number of T(periods) `tnum` to `rowidx` for the construction of type `Panel` or 
+`Panelized`. In terms of panel data, for each individual i, we observe multiple periods.
+`rowidx` is the array of `UnitRange` to record the index of individual i.
 
 # Examples
 ```juliadoctest
@@ -41,6 +39,7 @@ julia> rowidx = tnumTorowidx(tnum)
  3:5
  6:10
 ```
+
 """
 function tnumTorowidx(tnum)
     rowidx = Vector{UnitRange{Int}}(undef, length(tnum))
@@ -54,17 +53,14 @@ function tnumTorowidx(tnum)
     return rowidx
 end
 
-
 abstract type AbstractPanel{T, N} <: AbstractArray{T, N} end
 struct PanelMatrix{T} <: AbstractPanel{T, 2}
     data::Matrix{T}
-    # compact way of representing the type for a tuple of length 2 where all elements are of type Int.
     rowidx::Vector{UnitRange{Int}}
 end
 
 struct PanelVector{T} <: AbstractPanel{T, 1}
     data::Vector{T}
-    # compact way of representing the type for a tuple of length 2 where all elements are of type Int.
     rowidx::Vector{UnitRange{Int}}
 end
 
@@ -82,9 +78,8 @@ Create vector form of panel data.
 
 See also: [`Panel`](@ref)
 """
-struct Panelized{T<:Vector} <: AbstractArray{eltype(T), 1}
+struct Panelized{T} <: AbstractArray{eltype(T), 1}
     data::T
-    # compact way of representing the type for a tuple of length 2 where all elements are of type Int.
     rowidx::Vector{UnitRange{Int}}
 end
 
@@ -97,25 +92,38 @@ end
 
 # some utility function for `Panel` and `Panelized`
 numberofi(a::AbstractPanel) = length(a.rowidx)
-numberofi(a::Panelized) = length(a.rowidx)
+numberofi(a::Panelized)     = length(a.rowidx)
 
 numberoft(a::AbstractPanel) = [length(i) for i in a.rowidx]
-numberoft(a::Panelized) = [length(i) for i in a.rowidx]
+numberoft(a::Panelized)     = [length(i) for i in a.rowidx]
 
 
 
 """
-    Panel([data::AbstractVecOrMat, rowidx::Vector{UnitRange{Int}}])
+    Panel(a::AbstractVector, rowidx::Vector{UnitRange{Int}})
+    Panel(a::AbstractMatrix, rowidx::Vector{UnitRange{Int}})
+    Panel(a::AbstractVector; tum::Vector{Int})
+    Panel(a::AbstractMatrix; tum::Vector{Int})
+    Panel(a::Panelized)
     
-Create a `Matrix`-like object for the data type of panel model.
-
-Moreover, there are two acceptable from of rowinfo:
+Create a `Matrix` or  `Vector` object for the usage in panel model.
+There are two acceptable from of rowinfo:
 1. given the `rowidx::Vector{UnitRange{Int}}`
 2. given the each time period of i(keyword argument: `tnum`)
 
 # Examples
 ```juliadoctest
-julia> ivar = [1, 1, 1, 2, 2]; y=[2, 2, 4, 3, 3]; X=[3 5; 4 7; 5 9; 8 2; 3 2];
+julia> ivar = [1, 1, 1, 2, 2];
+
+julia> y = [2, 2, 4, 3, 3]; 
+
+julia> X = [3 5; 4 7; 5 9; 8 2; 3 2]
+5×2 Matrix{Int64}:
+ 3  5
+ 4  7
+ 5  9
+ 8  2
+ 3  2
 
 julia> tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]
 2-element Vector{Int64}:
@@ -135,7 +143,9 @@ julia> mean_data = mean.(Panelized(data), dims=1)
  [4.0 7.0]
  [5.5 2.0]
 
-julia> noft = numberoft(data); _data = [repeat(i,t) for (i,t) in zip(mean_data, noft)]
+julia> noft = numberoft(data); 
+
+julia> _data = [repeat(i,t) for (i,t) in zip(mean_data, noft)]
 2-element Vector{Matrix{Float64}}:
  [4.0 7.0; 4.0 7.0; 4.0 7.0]
  [5.5 2.0; 5.5 2.0]
@@ -148,33 +158,21 @@ julia> Panel(reduce(vcat, _data), data.rowidx)
  5.5  2.0
  5.5  2.0
 ```
+
 """
-function Panel(data::AbstractVector{<:Real}, rowidx)
-    PanelVector{eltype(data)}(data, rowidx)
-end
+Panel(a::AbstractVector, rowidx) = PanelVector{eltype(a)}(a, rowidx)
+Panel(a::AbstractMatrix, rowidx) = PanelMatrix{eltype(a)}(a, rowidx)
+Panel(a::AbstractVector; tnum)   = PanelVector{eltype(a)}(a, tnumTorowidx(tnum))
+Panel(a::AbstractMatrix; tnum)   = PanelMatrix{eltype(a)}(a, tnumTorowidx(tnum))
+Panel(a::Panelized)              = Panel(reduce(vcat, a), a.rowidx)
 
-function Panel(data::AbstractMatrix{<:Real}, rowidx)
-    PanelMatrix{eltype(data)}(data, rowidx)
-end
-
-function Panel(data::AbstractVector{<:Real}; tnum)
-    PanelVector{eltype(data)}(data, tnumTorowidx(tnum))
-end
-
-function Panel(data::AbstractMatrix{<:Real}; tnum)
-    PanelMatrix{eltype(data)}(data, tnumTorowidx(tnum))
-end
-
-function Panel(data::Panelized)
-    Panel(reduce(vcat, data), data.rowidx)
-end
 
 # arithmetic rules
-Base.:*(a::Real, b::AbstractPanel{T, N}) where{T, N} = Panel(a*b.data, b.rowidx)
-Base.:*(a::AbstractPanel{T1, 2}, b::AbstractVector{T2}) where{T1, T2} = Panel(a.data*b, a.rowidx)
-Base.:+(a::AbstractPanel{T1, N1}, b::AbstractPanel{T2, N2}) where{T1, T2, N1, N2} = Panel(a.data+b.data, a.rowidx)
-Base.:-(a::AbstractPanel{T1, N1}, b::AbstractPanel{T2, N2}) where{T1, T2, N1, N2} = Panel(a.data-b.data, a.rowidx)
-Broadcast.broadcast(f, a::AbstractPanel) = Panel(broadcast(f, a.data), a.rowidx)
+Base.:*(a::Number, b::AbstractPanel)        = Panel(a*b.data, b.rowidx)
+Base.:*(a::PanelMatrix, b::AbstractVector)  = PanelVector(a.data*b, a.rowidx)
+Base.:+(a::AbstractPanel, b::AbstractPanel) = Panel(a.data+b.data, a.rowidx)
+Base.:-(a::AbstractPanel, b::AbstractPanel) = Panel(a.data-b.data, a.rowidx)
+Broadcast.broadcast(f, a::AbstractPanel)    = Panel(broadcast(f, a.data), a.rowidx)
 Broadcast.broadcast(f, a::AbstractPanel, b) = Panel(broadcast(f, a.data, b), a.rowidx)
 Broadcast.broadcast(f, a, b::AbstractPanel) = Panel(broadcast(f, a, b.data), b.rowidx)
 
@@ -196,17 +194,31 @@ function Panelized(data::PanelVector)
     return res
 end
 
+
 """
     sf_demean(data::Panelized)
     sf_demean(data::AbstractPanel)
 
-demean function for panel data
+"Demean" function for panel data and no matter what input type is, the output will always
+be `Panel` not `Panelized`.
 
 # Examples
 ```juliadoctest
-julia> ivar = [1, 1, 1, 2, 2]; y=[2, 2, 4, 3, 3]; X=[3 5; 4 7; 5 9; 8 2; 3 2];
+julia> ivar = [1, 1, 1, 2, 2]; 
 
-julia> tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]; data = Panel(X, tnum=tnum)
+julia> y = [2, 2, 4, 3, 3]; 
+
+julia> X = [3 5; 4 7; 5 9; 8 2; 3 2]
+5×2 Matrix{Int64}:
+ 3  5
+ 4  7
+ 5  9
+ 8  2
+ 3  2
+
+julia> tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]; 
+
+julia> data = Panel(X, tnum=tnum)
 5×2 StochasticFrontiers.PanelMatrix{Int64}:
  3  5
  4  7
@@ -222,6 +234,7 @@ julia> sf_demean(data)
   2.5   0.0
  -2.5   0.0
 ```
+
 """
 function sf_demean(data::Panelized)
     means = mean.(data, dims=1)
@@ -238,8 +251,8 @@ sf_demean(data::AbstractPanel) = sf_demean(Panelized(data))
     fixrange(range::Vector{UnitRange{Int}}, lag::Int, totallag::Int)
 
 The former method is used by `lagdrop` and the letter is used by `lagshift`.
-To get the target indices which is useful when there is the time adjustment of panel data.
-Example is the time series model.
+The main purpose is to get the target indices which is useful when there is the time 
+adjustment of panel data.
 
 # Examples
 ```juliadoctest
@@ -255,6 +268,7 @@ julia> fixrange(a, 1, totallag)
  2:2
  7:7
 ```
+
 """
 function fixrange(range, totallag) 
     @inbounds newrange = [
@@ -287,6 +301,7 @@ julia> newrange(a, totallag)
  1:1
  2:2
 ```
+
 """
 function newrange(range, totallag) 
     @inbounds newrange = [
@@ -414,40 +429,34 @@ end
 
 # Distributions assumptions
 abstract type AbstractDist end
-
-# reconstruct the type of the distribution
-function (s::AbstractDist)(x...)
-    return s(x...)
-end
-
-
 struct Half{T<:AbstractArray} <: AbstractDist
     σᵤ²::T
 end
-
-truncated_variance(a::Half) = a.σᵤ²
-
-# initial construction, further completeness in `getvar`
-Half(;σᵤ²) = (Half, (σᵤ²,))
-const half = Half
-
-# product of the data and coefficients
-function (s::Half)(x::Vector)
-    return (broadcast(exp, truncated_variance(s)*x),)
-end
-
 
 struct Trun{T<:AbstractArray, S<:AbstractArray}  <: AbstractDist
     μ::T
     σᵤ²::S
 end
 
+struct Expo{T<:AbstractArray} <: AbstractDist
+    λ::T
+end
 
 # initial construction, further completeness in `getvar`
+Half(;σᵤ²)    = (Half, (σᵤ²,))
 Trun(;μ, σᵤ²) = (Trun, (μ, σᵤ²))
-const trun = Trun
+Expo(;λ)      = (Expo, (λ,))
 
-# inner product of the data and coefficients
+const half = Half
+const trun = Trun
+const expo = Expo
+
+
+# product of the data and coefficients
+function (s::Half)(x::Vector)
+    return (broadcast(exp, s.σᵤ²*x),)
+end
+
 function (s::Trun)(x::Vector)
     μ, σᵤ² = unpack(s)
     n = numberofvar(μ)
@@ -455,17 +464,6 @@ function (s::Trun)(x::Vector)
     return (μ * Wμ, broadcast(exp, σᵤ²*Wᵤ))
 end
 
-
-struct Expo{T<:AbstractArray} <: AbstractDist
-    λ::T
-end
-
-# initial construction, further completeness in `getvar`
-Expo(;λ) = (Expo, (λ,))
-const expo = Expo
-
-
-# inner product of the data and coefficients
 function (s::Expo)(x::Vector)
     return (broadcast(exp, s.λ * x),)
 end

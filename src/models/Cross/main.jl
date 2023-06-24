@@ -6,7 +6,7 @@
 - `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
 - `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
 """
-struct Cross{T<:AbstractDist} <: SFmodel
+struct Cross{T<:AbstractDist} <: AbstractSFmodel
     fitted_dist::T
     ψ::Vector{Any}
     paramnames::Matrix{Symbol}

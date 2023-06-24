@@ -16,7 +16,7 @@ end
 lagparam(a::AR) = getproperty(a, :p)
 lagparam(a::MA) = getproperty(a, :q)
 lagparam(a::ARMA) = getproperty(a, :p) + getproperty(a, :q)
-lagparam(a::PanelModel) = lagparam(get_serialcorr(a))
+lagparam(a::AbstractPanelModel) = lagparam(get_serialcorr(a))
 
 
 
@@ -36,7 +36,7 @@ struct SNCre{T<:AbstractDist,
              S<:AbstractSerialCorr,
              U<:Real,
              V<:PanelMatrix,
-            } <: PanelModel
+            } <: AbstractPanelModel
     fitted_dist::T
     ψ::Vector{Any}
     paramnames::Matrix{Symbol}

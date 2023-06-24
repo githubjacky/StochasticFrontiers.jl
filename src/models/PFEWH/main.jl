@@ -13,7 +13,7 @@ struct PFEWH{T<:AbstractDist,
              S<:PanelMatrix,
              U<:PanelMatrix,
              V<:PanelMatrix
-             } <: PanelModel
+             } <: AbstractPanelModel
     fitted_dist::T
     Ỹ::S
     X̃::U
