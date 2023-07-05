@@ -214,7 +214,7 @@ function sfmarginal_bootstrap(result;
 
     rng = seed != -1 ? MersenneTwister(seed) : nothing
 
-    maximizer, model, data, options = unpack(result, :ξ, :model, :data, :options)
+    maximizer, model, data, options = unpack(result.main_res, :ξ, :model, :data, :options)
     options = reset_options(options; kwargs...)
 
     obs_mm, marg_label = marginaleffect(maximizer, model, data)
@@ -224,7 +224,7 @@ function sfmarginal_bootstrap(result;
         Progress(R, desc = "Resampling: ", color = :white, barlen = 30) :
         Progress(R, desc = "Resampling: ", color = :white, barlen = 30, enabled = false)
 
-    sim_res = Matrix{float(Int)}(undef, R, size(obs_marg_mean, 2))
+    sim_res = Matrix{Float64}(undef, R, size(obs_marg_mean, 2))
     iter = 1
 
     while iter <= R

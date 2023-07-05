@@ -264,6 +264,7 @@ function sfmodel_fit(;spec,
         println("     - `sfmaximum(res)`      : the log-likelihood value of the model;")
         println("     - `sf_inefficiency(res)`: Jondrow et al. (1982) inefficiency index;")
         println("     - `sf_efficiency(res)`  : Battese and Coelli (1988) efficiency index;")
+
         println(" - Check out more examples in : examples/ \n")
         printstyled("*********************************\n\n"; color=:cyan)
     end
