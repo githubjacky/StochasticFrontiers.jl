@@ -166,3 +166,25 @@ function (a::PanelData)(selected_row)
         a.nofobs
     )
 end
+
+
+abstract type AbstractSFresult end
+
+# the main result, one of tthe fields of <: AbstractSFresult
+struct MainSFresult{T, S, U, V}
+    ξ::Vector{Float64}
+    model::T
+    data::S
+    options::U
+    jlms::Vector{Float64}
+    bc::Vector{Float64}
+    loglikelihood::Float64
+    main_opt::V
+end
+
+
+struct SFresult{T<:MainSFresult, S<:AbstractSFresult}
+    main_res::T
+    model_res::S
+end
+

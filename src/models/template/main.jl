@@ -8,6 +8,10 @@
 # 3. bootstrap re-construction rules
 # (a::AbstractUndefSFmodel)(selected_row, data::AbstractData)
 
+# 4. model specific result
+# construct the model specific struct
+# specify the rule
+
 #########################################################################################
 
 

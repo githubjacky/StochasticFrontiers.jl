@@ -71,6 +71,31 @@ function (a::SNCre)(selected_row, data::PanelData)
 
 end
 
+# 4. model specific result
+# construct the model specific struct
+# specify the rule
+struct SNCreresult <: AbstractSFresult
+    aic::Float64
+    bic::Float64
+end
+
+function SFresult(main_res::MainSFresult{T, S, U, V}) where{T<:SNCre, S, U, V} 
+    aic = -2 * main_res.loglikelihood + numberofparam(main_res.model)
+    bic = -2 * main_res.loglikelihood + numberofparam(main_res.model) * log(numberofobs(main_res.data))
+    return SFresult(main_res, SNCreresult(aic, bic))
+end
+
+sfAIC(a::SFresult) = round(a.model_res.aic, digits = 5)
+sfBIC(a::SFresult) = round(a.model_res.bic, digits = 5)
+
+#########################################################################################
+
+
+#########################################################################################
+# TODO: spec(): get the data of parameters, create names for parameters, slicing rules in LLT
+# notice that the type should be provide to utilize the multiple dispatch
+# spec(model::AbstractSFmodel, df; kwargs...)
+#########################################################################################
 
 """
     meanofx(rowidx, frontiers::Matrix{T}, verbose) where T
@@ -126,14 +151,6 @@ function meanofx(rowidx, frontiers; verbose)
     return xmean, pivots
 end
 
-#########################################################################################
-
-
-#########################################################################################
-# TODO: spec(): get the data of parameters, create names for parameters, slicing rules in LLT
-# notice that the type should be provide to utilize the multiple dispatch
-# spec(model::AbstractSFmodel, df; kwargs...)
-#########################################################################################
 
 """
 

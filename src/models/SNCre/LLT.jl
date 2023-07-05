@@ -4,17 +4,19 @@
 #########################################################################################
 
 """
-dear(simulate_ϵ::T, rowidx::Vector{UnitRange{Int}}, p::Int, ϕ::Vector{<:Real}) where T
+    dear(simulate_ϵ::T, rowidx::Vector{UnitRange{Int}}, p::Int, ϕ::Vector{<:Real}) where T
 
 extract the pure composite error term from the all AR terms
 
 """
 function dear(simulate_ϵ::T, rowidx, p, ϕ) where T
     base = lagdrop(simulate_ϵ, rowidx, p)
+
     ar_terms = T[ 
         lagshift(simulate_ϵ, rowidx, p; shift = lag)
         for lag in 1:p
     ]
+
     ar_factor = sum(ar_terms .* ϕ)
 
     return base - ar_factor
@@ -118,15 +120,7 @@ function Eη_by_individual(rowidx, dist_param::NTuple{N, Vector{T}}, model_type,
 end
 
 
-function eta(rowidx, 
-             econtype, 
-             serialcorr::MA, 
-             simulate_ϵ, 
-             θ, 
-             model_type, 
-             dist_coeff, 
-             dist_param
-            )
+function eta(rowidx, econtype, serialcorr::MA, simulate_ϵ, θ, model_type, dist_coeff, dist_param)
 
     Eη         = Eη_by_individual(rowidx, dist_param, model_type, dist_coeff)
     simulate_η = econtype * dema(rowidx, simulate_ϵ, Eη, lagparam(serialcorr) , θ)

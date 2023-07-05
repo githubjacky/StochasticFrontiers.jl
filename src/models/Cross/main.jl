@@ -41,6 +41,16 @@ function (a::Cross)(selected_row, ::Data)
     return bootstrap_model
 end
 
+
+# 4. model specific result
+# construct the model specific struct
+# specify the rule
+struct Crossresult <: AbstractSFresult end
+
+function SFresult(main_res::MainSFresult{T, S, U, V}) where{T<:Cross, S, U, V}
+    return SFresult(main_res, Crossresult())
+end
+
 #########################################################################################
 
 

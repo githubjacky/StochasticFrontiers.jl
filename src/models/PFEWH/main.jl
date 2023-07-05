@@ -47,6 +47,15 @@ function (a::PFEWH)(selected_row, paneldata)
     )
 end
 
+# 4. model specific result
+# construct the model specific struct
+# specify the rule
+struct PFEWHresult <: AbstractSFresult end
+
+function SFresult(main_res::MainSFresult{T, S, U, V}) where{T<:PFEWH, S, U, V} 
+    return SFresult(main_res, PFEWHresult())
+end
+
 #########################################################################################
 
 

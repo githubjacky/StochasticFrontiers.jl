@@ -189,6 +189,15 @@ function initial_condition(frontiers, depvar, ::Nothing, nofx, nofobs, noffixed;
 end
 
 
+function output(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+
+    main_res = MainSFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+    model_res = SFresult(main_res)
+
+    return model_res
+end
+
+
 """
     sfmodel_fit(;spec, options, init)
 
@@ -250,7 +259,7 @@ function sfmodel_fit(;spec,
         println(" - The sample mean of the JLMS inefficiency index: $(round(mean(jlms), digits=5))")
         println(" - The sample mean of the BC efficiency index:     $(round(mean(bc), digits=5))")
         println("")
-        println(" - Check out the availabel API in file: structure/api.jl")
+        println(" - Check out the availabel API in file: README.md")
         println("     - `res`                 : the return of sfmodel_fit, `res = sfmodel_fit(...)`")
         println("     - `sfmaximum(res)`      : the log-likelihood value of the model;")
         println("     - `sf_inefficiency(res)`: Jondrow et al. (1982) inefficiency index;")
@@ -260,7 +269,7 @@ function sfmodel_fit(;spec,
     end
 
     # res = SFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
-    res = SFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+    res = output(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
 
     return res
 end

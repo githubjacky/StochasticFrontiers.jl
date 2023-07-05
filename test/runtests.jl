@@ -17,8 +17,8 @@ using Test, Distributions
             options = sfopt(verbose = false)
         )
 
-        @test sfmaximizer(res)[1:2]                                  ≈ [0.29488, 0.23191]   atol=1e-5
-        @test sfmarginal(res, verbose = false)[1][!, :marg_age][1:2] ≈ [-0.00147, -0.00135] atol=1e-5
+        @test sfmaximizer(res)[1:2]                 ≈ [0.29488, 0.23191]   atol=1e-5
+        @test sfmarginal(res)[1][!, :marg_age][1:2] ≈ [-0.00147, -0.00135] atol=1e-5
 
         std_ci, bsdata = sfmarginal_bootstrap(res, R = 20, seed = 123)
 
