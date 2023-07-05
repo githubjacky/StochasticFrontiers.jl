@@ -1,84 +1,115 @@
+#########################################################################################
+# TODO: create the type for models
+#########################################################################################
+# 1. dist, ψ, paramnames are three necessary properties
 """
-    PFEWH(fitted_dist, Ỹ, X̃, hscale, ψ, paramnames)
+    PFEWH(dist, Ỹ, X̃, hscale, ψ, paramnames)
 
 # Arguments
-- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
--  `Ỹ::PanelMatrix{<:Real}`: demean of the dependent variable
-- `X̃::PanelMatrix{<:Real}`: demean of the explanatory variables
-- `hscale::PanelMatrix{<:Real}`: scaling property
-- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
-- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
+- `dist::AbstractDist`            : distibution assumption of the inefficiency
+-  `Ỹ::AbstractMatrix{<:Real}`    : demean of the dependent variable
+- `X̃::AbstractMatrix{<:Real}`     : demean of the explanatory variables
+- `hscale::AbstractMatrix{<:Real}`: scaling property
+
+- `ψ::Vector{Any}`                : record the length of each parameter, `ψ[end]` is the
+                                  summation of all model parameters' length
+
+- `paramnames::Matrix{Symbol}`    : parameters' names which is the first and second
+                                  columns of the output estimation table
+
 """
-struct PFEWH{T<:AbstractDist, 
-             S<:PanelMatrix,
-             U<:PanelMatrix,
-             V<:PanelMatrix
-             } <: AbstractPanelModel
-    fitted_dist::T
-    Ỹ::S
-    X̃::U
-    hscale::V
-    ψ::Vector{Any}
+struct PFEWH{T<:AbstractDist} <: AbstractPanelModel
+    dist::T
+    Ỹ::Matrix{Float64}
+    X̃::Matrix{Float64}
+    hscale::Matrix{Float64}
+    ψ::Vector{Int64}
     paramnames::Matrix{Symbol}
 end
 
+# 2. defined undefined-class and some rules
+struct UndefPFEWH <: AbstractUndefSFmodel end
+PFEWH() = UndefPFEWH()
+(::UndefPFEWH)(args...) = PFEWH(args...)
 
-# for bootstrap
+
+# 3. bootstrap re-construction rules
+# (a::AbstractUndefSFmodel)(selected_row, data::AbstractData)
 function (a::PFEWH)(selected_row, paneldata)
-    rowidx, depvar, frontiers = unpack(paneldata, :rowidx, :depvar, :frontiers)
-    bootstrap_model = PFEWH(
-        typeofdist(a)([Panel(i[selected_row, :], rowidx) for i in unpack(distof(a))]...),
-        sf_demean(depvar),
-        sf_demean(frontiers),
-        Panel(a.hscale[selected_row, :], rowidx),
-        get_paramlength(a),
-        get_paramname(a)
+    return PFEWH(
+        resample(a.dist, selected_row),
+        # depvar, and frontiers has bootstrapped before, no need to select row
+        sf_demean(paneldata.depvar, paneldata.rowidx),
+        sf_demean(paneldata.frontiers, paneldata.rowidx),
+        a.hscale[selected_row, :],
+        a.ψ,
+        a.paramnames
     )
-
-    return bootstrap_model
 end
 
+#########################################################################################
 
-function sfspec(::Type{PFEWH}, data...; 
-                type, dist, σᵥ², ivar, depvar, frontiers, hscale, 
-                verbose = true
-               )
-    # get the base vaiables
-    paneldata, fitted_dist, _col1, _col2 = getvar(
-        data, ivar, type, dist, σᵥ², depvar, frontiers, verbose
-    )
 
-    # get hscale and demean data 
-    df = length(data) != 0 ? data[1] : data
-    h = Panel(readframe(hscale, df=df), get_rowidx(paneldata))
-    h, _ = isMultiCollinearity(:hscale, h, verbose)
-    fitted_dist = isconstant(fitted_dist, verbose)
+#########################################################################################
+# TODO: get the data of parameters, create names for parameters, slicing rules in LLT
+# notice that the type should be provide to utilize the multiple dispatch
+# spec(model::AbstractSFmodel, df; kwargs...)
+#########################################################################################
 
-    Ỹ, X̃ = sf_demean(dependentvar(paneldata)), sf_demean(frontier(paneldata))
+"""
+
+
+# Model Specific Arguments
+- `ivar`::Union{Symbol, Vector{<:Real}}: further transform to `rowidx` in function `getvar`
+
+- `hscale::Union{Symbol, Tuple{Vararg{Symbol}}, Vector{<:Real}, Matrix{<:Real}}`: scaling property
+
+"""
+function spec(model::UndefPFEWH, df; 
+                type::T, dist, σᵥ², ivar, depvar, frontiers, hscale, verbose = true 
+        ) where{T<:AbstractEconomicType}
+    # 1. get some base vaiables
+    paneldata, dist, _col1, _col2 = getvar(df, ivar, eval(type), dist, σᵥ², depvar, frontiers, verbose)
+
+    # 2. some other variables
+    # hscale and demean data 
+    h    = isMultiCollinearity(:hscale, readframe(hscale, df=df); warn = verbose)[1]
+    dist = isconstant(dist)
+
+    rowidx = paneldata.rowidx
+    Ỹ      = sf_demean(paneldata.depvar, rowidx)
+    X̃      = sf_demean(paneldata.frontiers, rowidx)
    
-    # construct remaind first column of output estimation table
-    _col1[1] = Symbol(:demean, _col1[1])
-    col1 = complete_template(_col1, :hscale)
+    # 3. construct remaind first column of output estimation table
+    _col1[1] = Symbol(:demean_, _col1[1])
+    col1     = complete_template(_col1, :log_hscale)
 
-    # construct remaind second column of output estimation tabel
+    # 4. construct remaind second column of output estimation tabel
     col2 = complete_template(_col2, create_names(hscale))
 
-    # costruct the names of parameters of the output estimation table
+    # 5. combine col1 and col2
     paramnames = paramname(col1, col2)
 
-    # generate the remain rule for slicing parameter
+    # 6. generate the rules for slicing parameters
     ψ = complete_template(
-        Ψ(frontier(paneldata), fitted_dist, variance(paneldata)), 
+        Ψ(paneldata.frontiers, dist, paneldata.σᵥ²), 
         numberofvar(h)
     )
     push!(ψ, sum(ψ))
+    
 
-    return PFEWH(fitted_dist, Ỹ, X̃, h, ψ, paramnames), paneldata
+    return model(dist, Ỹ, X̃, h, ψ, paramnames), paneldata::PanelData{T}
 end
 
+#########################################################################################
 
+
+#########################################################################################
+# TODO: model specification which will be printed during MLE estimation
+# modelinfo(::AbstractUndefSFmodel):
+#########################################################################################
 function modelinfo(::PFEWH)
-    modelinfo1 = "true fixed effect of Wang and Ho (2010 JE)"
+    modelinfo1 = "panel fixed effect of Wang and Ho (2010 JE)"
     
     modelinfo2 =
 """
@@ -99,6 +130,8 @@ function modelinfo(::PFEWH)
 """
     _modelinfo(modelinfo1, modelinfo2)
 end
+
+#########################################################################################
 
 
 # other module

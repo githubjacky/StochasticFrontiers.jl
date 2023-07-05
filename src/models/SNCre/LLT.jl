@@ -1,189 +1,239 @@
-"""
-    error_simulation(σₑ²::Real, R::Int, inum::Int, tnum::Vector{Int})    
+#########################################################################################
+# TODO: composite error term
+# composite_error(coeff::Vector{Vector{T}}, model::AbstractModel, data) where T
+#########################################################################################
 
-Simulate the error term of the individual effect, with `R` times
-
-# Examples
-```juliadoctest
-julia> error_simulation(0.5, 250, 2, [3, 3])
-6×250 Main.SFrontiers.Panel{Matrix{Float64}}:
- -0.56769    -0.600159  -0.361621  …  -0.128588  -0.512098   0.124228
- -0.56769    -0.600159  -0.361621     -0.128588  -0.512098   0.124228
- -0.56769    -0.600159  -0.361621     -0.128588  -0.512098   0.124228 
- -0.0315529   0.469108  -0.0538756     0.425247  -0.40964   -0.251104 
- -0.0315529   0.469108  -0.0538756     0.425247  -0.40964   -0.251104
- -0.0315529   0.469108  -0.0538756 …   0.425247  -0.40964   -0.251104
-```
 """
-function error_simulation(σₑ², R, inum, tnum)
-    eᵢ = [
-        rand(Normal(0, sqrt(σₑ²)), 1, R) 
-        for _ in 1:inum
+dear(simulate_ϵ::T, rowidx::Vector{UnitRange{Int}}, p::Int, ϕ::Vector{<:Real}) where T
+
+extract the pure composite error term from the all AR terms
+
+"""
+function dear(simulate_ϵ::T, rowidx, p, ϕ) where T
+    base = lagdrop(simulate_ϵ, rowidx, p)
+    ar_terms = T[ 
+        lagshift(simulate_ϵ, rowidx, p; shift = lag)
+        for lag in 1:p
     ]
-    e = reduce(
-        vcat, 
-        [
-            repeat(i, inner=(t, 1))
-            for (i,t) in zip(eᵢ, tnum)
-        ]
-    )
-    return e
+    ar_factor = sum(ar_terms .* ϕ)
+
+    return base - ar_factor
 end
 
 
 """
-    eta(porc, SCE::AR, simulate_ϵ, η_param)
-    eta(porc, SCE::MA, simulate_ϵ, η_param)
-    eta(porc, SCE::ARMA, simulate_ϵ, η_param)
-
-Purely calculate the total composite error term
-
-# Arguments
-- `porc::Int`: economic interpretatino, if it's `Prod`, `porc`=1, while if it's the `Cost` case, `porc`=-1
-- `SCE::AbstractSerialCorr`: serial correlation assumption
-- `simulate_ϵ::Panel{T} where T`: simulated total composite_error
-- `η_param::Tuple{Vector{<:Real}, AbstractDist, Vector{Union{Matrix{<:Real}, Panel{T} where T}}, Vector{<:Real}}`
-    1. coefficient of serial correlation term(AR: ρ, MA: θ)
-    2. type of distribution of inefficiency
-    3. data of the distribution's parameters
-    4. coefficient of the distribution's parameters
-"""
-function eta(porc, serialcorr::AR, simulate_ϵ, lagcoeff, args...)
-    p = lagparam(serialcorr)  # lag period
-
-    # if lag period > 1, let all the element of ρ <  1 to ensure stationality
-    # notice that the last coefficient is constant which will be decluded
-    rho = p == 1 ? lagcoeff : (rho = coeffs(fromroots(lagcoeff./(abs.(lagcoeff).+1)))[begin:end-1])  
-    
-    base = lagdrop(simulate_ϵ, p)
-    ar_terms = [ 
-        lagshift(simulate_ϵ, i, totallag=p)
-        for i in 1:p
-    ]
-    ar_factor = Panel(sum(ar_terms .* rho), base.rowidx)
-    simulate_η =  Panelized(
-        broadcast(*, porc, (base - ar_factor))
-    )
-
-    return simulate_η
-end
-
-
-"""
-    dema(porc, simulate_ϵ, Eη, q, theta)
+    dema(rowidx, econtype, simulate_ϵ, Eη, q, θ)
 
 Subtract the `simulate_ϵ` from the moving average terms
 
 # Arguments
-- `proc::Int`
-- `simulate_ϵ::PanelMatrix{T} where T`
-- `Eη::Vector{<:Real}`: unconditional mean of  `η` for each individual
+- `rowidx::Vector{UnitRange{Int}}`
+- `econtype::AbstractEconType`
+- `simulate_ϵ::Matrix{<:Real}`
+- `Eη::Vector{<:Real}`        : unconditional mean of  `η` for each individual
 - `q::Int`
-- `theta::Vector{<:Real}`
+- `θ::Vector{<:Real}`
+
 """
-function dema(porc, simulate_ϵ, Eη, q, theta)
-    panelized_simulate_ϵ = Panelized(simulate_ϵ)
-    simulate_η = Vector(undef, numberofi(simulate_ϵ))
-    @inbounds for i = eachindex(panelized_simulate_ϵ)
-        T, R = numberofobs(panelized_simulate_ϵ[i])
-        ηᵢ = Matrix(undef, T+q, R)
-        ηᵢ[begin:q, :] .= Eη[i]
-        for j = q+1:T+q
-            ηᵢ[j, :] = 
-                panelized_simulate_ϵ[i][j-q, :] - 
-                sum([
-                    ηᵢ[j-k, :]*theta[k] 
-                    for k = eachindex(theta)
-                ])
+function dema(rowidx, simulate_ϵ::Matrix{T}, Eη, q, θ) where T
+    G, R        = size(simulate_ϵ)
+    simulate_ϵ_ = static_panelize(simulate_ϵ, rowidx)
+    simulate_η  = Matrix{T}(undef, G-(length(rowidx)*q), R)  # some observations will be dropped
+    rowidx_     = newrange(rowidx, q)
+
+    @inbounds for i = eachindex(simulate_ϵ_)
+        instance        = simulate_ϵ_[i]
+        t               = numberofobs(instance)
+        ηᵢ              = Matrix{T}(undef, t+q, R)
+        ηᵢ[1:q, :]     .= view(Eη, i)
+
+        for j = 1+q : t+q
+            ηᵢ[j, :] = begin
+                view(instance, j-q, :) - 
+                sum( Vector{T}[view(ηᵢ, j-k, :) for k = eachindex(θ)] .* θ )
+            end
         end
-        simulate_η[i] = porc * ηᵢ[(begin+2*q):end, :]
+
+        simulate_η[rowidx_[i], :] = ηᵢ[(begin+2*q):end, :]
     end
-    simulate_η = Panelized(simulate_η, newrange(simulate_ϵ.rowidx, q))
-
-    return simulate_η
-end
-
-function eta(porc, serialcorr::MA, simulate_ϵ, η_param)
-    @inbounds Εη = mean.([
-        unconditional_mean(η_param[2], dist_dataᵢ..., η_param[4])
-        for dist_dataᵢ in zip([Panelized(i) for i in η_param[3]]...)
-    ])
-    simulate_η = dema(porc, simulate_ϵ, Εη, lagparam(serialcorr) , η_param[1])
-
-    return simulate_η
-end
-
-function eta(porc, serialcorr::ARMA, simulate_ϵ, η_param)
-    p, q = unpack(serialcorr)
-    rho, θ = η_param[1][begin:p], η_param[2][begin+p:end]
-    p != 1 && (rho = coeffs(fromroots(rho./(abs.(rho).+1)))[begin:end-1])
-
-    base = lagdrop(simulate_ϵ, p)
-    ar_terms = [ 
-        lagshift(simulate_ϵ, lag, totallag=p)
-        for lag in 1:p
-    ]
-    ar_factor = Panel(sum(ar_terms .* rho), base.rowidx)
-    dear = base - ar_factor
-
-    @inbounds Εη = mean.([
-        unconditional_mean(η_param[2], dist_dataᵢ..., η_param[4])
-        for dist_dataᵢ in zip([Panelized(i) for i in η_param[3]]...)
-    ])
-    simulate_η = dema(porc, dear, Εη, q, θ)
 
     return simulate_η
 end
 
 
-function composite_error(coeff, model::SNCre, data::PanelData)
-    fitted_dist, serialcorr, R, _σₑ², xmean = unpack(model, :fitted_dist, :serialcorr, :R, :σₑ², :xmean)
-    econtype, σᵥ², depvar, frontiers = unpack(
-        data, :econtype, :σᵥ², :depvar, :frontiers
-    )
+"""
+    eta(rowidx, econtype, serialcorr::AR, simulate_ϵ, ϕ, args...)
+    eta(rowidx, econtype, serialcorr::MA, simulate_ϵ, θ, model_type, dist_coeff, dist_paaram)
+    eta(rowidx, econtype, serialcorr::ARMA, simulate_ϵ, lagcoeff, model_type, dist_coeff, dist_param)
+
+Purely calculate the total composite error term
+
+# Arguments
+- `econtype::AbstractEconType`    : economic interpretation, either Prodution or Cost.
+- `serialcorr::AbstractSerialCorr`: serial correlation assumption, AR, MA or ARMA.
+- `simulate_ϵ::Matrix{T} where T` : simulated total composite_error
+- `ϕ::Vector{Int}`                :
+    - `ϕ`
+    - `lagcoeff`
+
+- `model_type::Type{<:AbstractSFmodel}`
+- `dist_coeff`::Vector{Int}
+- `dist_param`::NTuple{N, Matrix{T}} where {N, T}`
+
+"""
+function eta(rowidx, econtype, serialcorr::AR, simulate_ϵ, ϕ, args...)
+
+    # if lag period > 1, let all the element of ρ <  1 to ensure stationality
+    # notice that the last coefficient is constant which will be decluded
+    ϕ = begin
+        serialcorr.p == 1 ? 
+            ϕ : 
+            coeffs(fromroots( ϕ ./ (abs.(ϕ).+1) ))[begin:end-1]
+    end
+
+    simulate_η = econtype * dear(simulate_ϵ, rowidx, serialcorr.p, ϕ)
     
-    σᵥ² = Panelized(
-        lagdrop(broadcast(exp, σᵥ²*coeff[3]), lagparam(serialcorr))
+    return simulate_η
+end
+
+
+function Eη_by_individual(rowidx, dist_param::NTuple{N, Vector{T}}, model_type, dist_coeff) where{N, T}
+    dist_param_ = map(
+        x -> static_panelize(x, rowidx),
+        dist_param
     )
-    dist_param =[
-        Panelized(lagdrop(i, lagparam(serialcorr)))
-        for i in fitted_dist(coeff[2])
-    ]
+
+    Eη = Vector{T}(undef, length(rowidx))
+
+    # mean of unconditional mean for individual i across different period t
+    for (i, val) = enumerate(zip(dist_param_...))
+        _Eη = map(
+            x -> unconditional_mean(model_type, dist_coeff, x...),
+            zip(eachrow.(val)...)
+        )
+        Eη[i] = mean(_Eη)
+    end
+
+    return Eη
+end
+
+
+function eta(rowidx, 
+             econtype, 
+             serialcorr::MA, 
+             simulate_ϵ, 
+             θ, 
+             model_type, 
+             dist_coeff, 
+             dist_param
+            )
+
+    Eη         = Eη_by_individual(rowidx, dist_param, model_type, dist_coeff)
+    simulate_η = econtype * dema(rowidx, simulate_ϵ, Eη, lagparam(serialcorr) , θ)
+
+    return simulate_η
+end
+
+
+function eta(rowidx, econtype, serialcorr::ARMA, simulate_ϵ, lag_coeff, model_type, dist_coeff, dist_param)
+    p, q = unpack(serialcorr)
+    ϕ, θ = lag_coeff[begin:p], lag_coeff[p+1:end]
+
+    ϕ = begin
+        serialcorr.p == 1 ? 
+            ϕ : 
+            coeffs(fromroots( ϕ ./ (abs.(ϕ).+1) ))[begin:end-1]
+    end
+
+    de_ar      = dear(simulate_ϵ, rowidx, p, ϕ)
+    Eη         = Eη_by_individual(valid_range(rowidx, p), dist_param, model_type, dist_coeff)
+    de_ma      = dema(newrange(rowidx, p), de_ar, Eη, q, θ)
+    simulate_η = econtype * de_ma
+
+    return simulate_η
+end
+
+
+function composite_error(coeff::Vector{Vector{T}}, model::SNCre, data::PanelData) where T
+    σᵥ² = exp.(data.σᵥ² * coeff[3])
+
+    dist_param = model.dist(coeff[2])
 
     Random.seed!(1234)
-    σₑ² = exp((_σₑ² * coeff[5])[1])  # since it must be constant(Wₑ is a vector, σₑ² is a scalar)
-    simulate_e = error_simulation(σₑ², R, numberofi(depvar), numberoft(depvar))
+    # since it must be constant(Wₑ is a vector, σₑ² is a scalar)
+    R   = model.R
+    σₑ² = exp((model.σₑ² * coeff[5])[1])  
+    e   = Matrix{T}(undef, data.nofobs, R)
 
-    simulate_ϵ = broadcast(
-        -, 
-        (depvar - frontiers*coeff[1] - xmean*coeff[4]), 
-        simulate_e
+    for i in data.rowidx
+        e[i, 1:R] .= rand(Normal(0, sqrt(σₑ²)), 1, R)
+    end
+
+    simulate_ϵ = broadcast( 
+        -,
+        data.depvar - data.frontiers * coeff[1] -  model.xmean * coeff[4], 
+        e
     )
-    simulate_η = eta(econtype, serialcorr, simulate_ϵ, coeff[6], fitted_dist, coeff[2])
+
+    simulate_η = eta(
+        data.rowidx, 
+        data.econtype, 
+        model.serialcorr, 
+        simulate_ϵ, 
+        coeff[6], 
+        typeof(model), 
+        coeff[2], 
+        dist_param
+    )
 
     return simulate_η, σᵥ², dist_param
 end
 
+#########################################################################################
+
+
+#########################################################################################
+# TODO: loglikelihood  function
+# template functions are provided if needed
+# notice that the type should be provide to utilize the multiple dispatch
+# there is no need to reverse the sign because the minus symbol(-) will be added
+# in structure/mle.jl
+# LLT(ξ, model::AbstractModel, data::Data)
+#########################################################################################
 
 function LLT(ξ, model::SNCre, data::PanelData)
-    simulate_η, σᵥ², _dist_param = composite_error(
-        slice(ξ, get_paramlength(model), mle=true), 
-        model, 
-        data
-    )
-    dist_param = [i for i in zip(_dist_param...)]
-    dist_type = typeofdist(model)
+    coeff                       = slice(ξ, model.ψ, mle = true)
+    simulate_η, σᵥ², dist_param = composite_error(coeff, model, data)
 
-   @floop for i in eachindex(σᵥ², dist_param, simulate_η)
-        llhᵢ = log(mean([
-            Base.prod(_likelihood(
-                dist_type, σᵥ²[i], dist_param[i]..., simulate_η[i][:, j]
-            ))
-            for j in axes(simulate_η[i], 2)
-        ]))
+    rowidx  = data.rowidx
+    lag     = lagparam(model)
+
+    σᵥ²_ = drop_panelize(σᵥ², rowidx, lag)
+
+    dist_type  = typeofdist(model)
+    dist_param_ = map(
+        x -> drop_panelize(x, rowidx, lag),
+        dist_param 
+    )
+
+    # shift because we first lagdrop in `eta`
+    simulate_η_ = static_panelize(simulate_η, newrange(rowidx, lag))
+
+
+    @inbounds @floop for (i, val) in enumerate(zip(dist_param_...))
+
+        simulate_llhᵢ = map(
+            x -> _likelihood(dist_type, σᵥ²_[i], val..., x),
+            eachcol(simulate_η_[i])
+        )
+
+        llhᵢ = log(mean(simulate_llhᵢ))
         llhᵢ = !isinf(llhᵢ) ? llhᵢ : -1e10
-        @reduce llh += llhᵢ
+
+        @reduce llh = 0 + llhᵢ
     end
 
-    return -llh
+    return llh
 end
+
+#########################################################################################

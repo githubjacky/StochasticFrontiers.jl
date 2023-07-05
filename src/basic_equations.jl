@@ -52,22 +52,23 @@ function expologpdf(λ, ϵ, σᵥ, σᵥ², λ²)
 end
 
 """
-    likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
-    likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
-    likelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+    _likelihood(::Type{<:Half}, σᵥ², σᵤ², ϵ)
+    _likelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
+    _likelihood(::Type{<:Expo}, σᵥ², λ², ϵ)
 
 The likelihood function of half normal, truncated normal and exponential distribution
 
 # Arguments
 - `σᵥ²::Vector{<:Real}`: variance of the random error
-- `μ::Vector{<:Real}`: parameter of the truncated normal distribution
+- `μ::Vector{<:Real}`  : parameter of the truncated normal distribution
 - `σᵤ²::Vector{<:Real}`: parameter of the half or truncated normal distribution
-- `λ²::Vector{<:Real}`: parameter of the exponential distribution
-- `ϵ::Vector{<:Real}`: conposite error term
+- `λ²::Vector{<:Real}` : parameter of the exponential distribution
+- `ϵ::Vector{<:Real}`  : conposite error term
+
 """
-function _likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
+function _likelihood(::Type{<:Half}, σᵥ², σᵤ², ϵ) 
     res = similar(ϵ)
-    @inbounds for i in eachindex(σᵥ², σᵤ², ϵ)
+    @inbounds @views for i in eachindex(σᵥ², σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σ = sqrt(σ²)
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
@@ -75,12 +76,12 @@ function _likelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
         res[i] = halfpdf(σ, σ², ϵ[i], μₛ, σₛ²)
     end
 
-    return res
+    return Base.prod(res)
 end
 
-function _likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
+function _likelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ) 
     res = similar(ϵ)
-    @inbounds for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    @inbounds @views for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ² = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
@@ -88,37 +89,38 @@ function _likelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
         res[i] = trunpdf(sqrt(σ²), σ², μ[i], ϵ[i], σₛ², σᵤ, μₛ)
     end
     
-    return res
+    return Base.prod(res)
 end
 
-function _likelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+function _likelihood(::Type{<:Expo}, σᵥ², λ², ϵ) 
     res = similar(ϵ)
-    @inbounds for i in eachindex(σᵥ², λ², ϵ)
+    @inbounds @views for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         res[i] = expopdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
     end
 
-    return res
+    return Base.prod(res)
 
 end
 
 """
-    loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
-    loglikelihood(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
-    loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+    loglikelihood(::Type{<:Half}, σᵥ², σᵤ², ϵ)
+    loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
+    loglikelihood(::Type{<:Expo}, σᵥ², λ², ϵ)
 
 The log likelihood function of half normal, truncated normal and exponential distribution
 
 # Arguments
 - `σᵥ²::Vector{<:Real}`: variance of the random error
-- `μ::Vector{<:Real}`: parameter of the truncated normal distribution
+- `μ::Vector{<:Real}`  : parameter of the truncated normal distribution
 - `σᵤ²::Vector{<:Real}`: parameter of the half or truncated normal distribution
-- `λ²::Vector{<:Real}`: parameter of the exponential distribution
-- `ϵ::Vector{<:Real}`: conposite error term
+- `λ²::Vector{<:Real}` : parameter of the exponential distribution
+- `ϵ::Vector{<:Real}` : conposite error term
+
 """
-function _loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
-    @floop for i in eachindex(σᵥ², σᵤ², ϵ)
+function _loglikelihood(::Type{<:Half}, σᵥ², σᵤ², ϵ) 
+    @inbounds @views @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
@@ -129,8 +131,8 @@ function _loglikelihood(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     return llh
 end
 
-function _loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
-    @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+function _loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ) 
+    @inbounds @views @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i]
         σₛ² = (σᵥ²[i] * σᵤ²[i]) / σ²
         σᵤ = sqrt(σᵤ²[i])
@@ -142,8 +144,8 @@ function _loglikelihood(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
     return llh
 end
 
-function _loglikelihood(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
-     @floop for i in eachindex(σᵥ², λ², ϵ)
+function _loglikelihood(::Type{<:Expo}, σᵥ², λ², ϵ) 
+     @inbounds @views @floop for i in eachindex(σᵥ², λ², ϵ)
         λ = sqrt(λ²[i])
         σᵥ = sqrt(σᵥ²[i])
         llhᵢ = expologpdf(λ, ϵ[i], σᵥ, σᵥ²[i], λ²[i])
@@ -155,24 +157,25 @@ end
 
 
 """
-    _jlmsbc(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
-    _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
-    _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
+    _jlmsbc(::Type{<:Half}, σᵥ², σᵤ², ϵ)
+    _jlmsbc(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ)
+    _jlmsbc(::Type{<:Expo}, σᵥ², λ², ϵ)
 
 The close form of the jlms, bc index and the distribution assumption includes 
 half normal, normal, exponential
 
 # Arguments
 - `σᵥ²::Vector{<:Real}`: variance of the random error
-- `μ::Vector{<:Real}`: parameter of the truncated normal distribution
+- `μ::Vector{<:Real}`  : parameter of the truncated normal distribution
 - `σᵤ²::Vector{<:Real}`: parameter of the half or truncated normal distribution
-- `λ²::Vector{<:Real}`: parameter of the exponential distribution
-- `ϵ::Vector{<:Real}`: conposite error term
+- `λ²::Vector{<:Real}` : parameter of the exponential distribution
+- `ϵ::Vector{<:Real}`  : conposite error term
+
 """
-function _jlmsbc(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
+function _jlmsbc(::Type{<:Half}, σᵥ², σᵤ², ϵ) 
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @inbounds @floop for i in eachindex(σᵥ², σᵤ², ϵ)
+    @inbounds @views @floop for i in eachindex(σᵥ², σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (-σᵤ²[i] * ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -183,10 +186,10 @@ function _jlmsbc(::Type{Half{T}}, σᵥ², σᵤ², ϵ) where T
     return jlms, bc
 end
 
-function _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
+function _jlmsbc(::Type{<:Trun}, σᵥ², μ, σᵤ², ϵ) 
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @inbounds @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
+    @inbounds @views @floop for i in eachindex(σᵥ², μ, σᵤ², ϵ)
         σ²  = σᵤ²[i] + σᵥ²[i] 
         μₛ  = (σᵥ²[i]*μ[i] - σᵤ²[i]*ϵ[i]) / σ²
         σₛ  = sqrt((σᵥ²[i]*σᵤ²[i]) / σ²)
@@ -197,10 +200,10 @@ function _jlmsbc(::Type{Trun{T, U}}, σᵥ², μ, σᵤ², ϵ) where {T, U}
     return jlms, bc
 end
 
-function _jlmsbc(::Type{Expo{T}}, σᵥ², λ², ϵ) where T
+function _jlmsbc(::Type{<:Expo}, σᵥ², λ², ϵ)
     jlms = similar(ϵ)
     bc = similar(ϵ)
-    @inbounds @floop for i in eachindex(σᵥ², λ², ϵ)
+    @inbounds @views @floop for i in eachindex(σᵥ², λ², ϵ)
         σᵥ = sqrt(σᵥ²[i])
         λ = sqrt(λ²[i])
         μₛ  = (-ϵ[i]) - (σᵥ²[i]/λ)
@@ -213,9 +216,9 @@ end
 
 
 """
-    _unconditional_mean(::Type{Half{T}}, log_σᵤ², dist_coeff) where T
-    _unconditional_mean(::Type{Trun{T, U}}, μ, log_σᵤ², dist_coeff) where{T, U}
-    _unconditional_mean(::Type{Expo{T}}, log_λ², dist_coeff) where T
+    _unconditional_mean(::Type{<:Half}, coeff, log_σᵤ²)
+    _unconditional_mean(::Type{<:Trun}, coeff, μ, log_σᵤ²)
+    _unconditional_mean(::Type{<:Expo}, coeff, log_λ²)
 
 Calculate the unconditional mean of the composite error term
 Notice that if it's calculated to generate the marginal effect return Real 
@@ -223,19 +226,22 @@ required by the forwardDiff
 
 # Arguments
 - `μ::Vector{<:Real}`: parameter of the truncated normal distribution
-- `log_σᵤ²::AbstractMatrix{<:Real}`
+
+- `log_σᵤ²::Vector{<:Real}`
+
 - `log_λ²::Vector{<:Real}`: parameter of the exponential distribution
+
 - `dist_coeff::Vector{<:Real}`
 """
-function _unconditional_mean(::Type{Half{T}}, coeff, log_σᵤ²) where T
+function _unconditional_mean(::Type{<:Half}, coeff, log_σᵤ²) 
     uncondU = sqrt((2/π) * exp(log_σᵤ²'*coeff))
     
     return uncondU
 end
 
-function _unconditional_mean(::Type{Trun{T, U}}, coeff, μ, log_σᵤ²) where{T, U}
-    Wμ, Wᵤ = slice(coeff, [length(μ), length(log_σᵤ²)])
-    μ = μ' * Wμ
+function _unconditional_mean(::Type{<:Trun}, coeff, _μ, log_σᵤ²) 
+    Wμ, Wᵤ = slice(coeff, [length(_μ), length(log_σᵤ²)])
+    μ = _μ' * Wμ
     σᵤ = exp(0.5*log_σᵤ²'*Wᵤ)
     Λ = μ / σᵤ
     uncondU = σᵤ * (Λ + normpdf(Λ)/normcdf(Λ))
@@ -243,7 +249,7 @@ function _unconditional_mean(::Type{Trun{T, U}}, coeff, μ, log_σᵤ²) where{T
     return uncondU
 end
 
-function _unconditional_mean(::Type{Expo{T}}, coeff, log_λ²) where T
+function _unconditional_mean(::Type{<:Expo}, coeff, log_λ²) 
     uncondU = sqrt(exp(log_λ²'*coeff))
     
     return uncondU

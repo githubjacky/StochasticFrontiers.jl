@@ -1,3 +1,8 @@
+#########################################################################################
+# TODO: create the type for models
+#########################################################################################
+# 1. dist, ψ, paramnames are three necessary properties
+
 # serial correlation
 abstract type AbstractSerialCorr end
 struct AR <: AbstractSerialCorr
@@ -13,54 +18,62 @@ struct ARMA <: AbstractSerialCorr
     q::Integer
 end
 
-lagparam(a::AR) = getproperty(a, :p)
-lagparam(a::MA) = getproperty(a, :q)
-lagparam(a::ARMA) = getproperty(a, :p) + getproperty(a, :q)
-lagparam(a::AbstractPanelModel) = lagparam(get_serialcorr(a))
-
-
 
 """
     SNCre(fitted_dist, ψ, paramnames, serialcorr, R, σₑ², xmean)
 
 # Arguments
-- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
-- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
-- `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
-- `SCE::AbstractSerialCorr`: serial correlation
-- `R::Int`: number of simulation of error of controled random effect `e`
-- `σₑ²::Real`: vaiance of the `e`
-- `xmean::PanelMatrix`: explanatory variables of the controled random effect
+- `fitted_dist::AbstractDist`     : distibution assumption of the inefficiency
+
+- `ψ::Vector{Any}`                : record the length of each parameter, `ψ[end]` is the 
+                                  arrgregate length of all parameters
+
+- `paramnames::Matrix{Symbol}`    : parameters' names used by the output estimation table
+- `SCE::AbstractSerialCorr`       : serial correlation
+- `R::Int`                        : number of simulation of error of controled random effect `e`
+- `σₑ²::Real`                     : vaiance of the `e`
+- `xmean::AbstractMatrix{<:Real}` : explanatory variables of the controled random effect
+
 """
-struct SNCre{T<:AbstractDist,
-             S<:AbstractSerialCorr,
-             U<:Real,
-             V<:PanelMatrix,
-            } <: AbstractPanelModel
-    fitted_dist::T
-    ψ::Vector{Any}
+struct SNCre{T, S} <: AbstractPanelModel
+    dist::T
+    ψ::Vector{Int64}
     paramnames::Matrix{Symbol}
     serialcorr::S
-    R::Int
-    σₑ²::U
-    xmean::V
+    R::Int64
+    σₑ²::Float64
+    xmean::Matrix{Float64}
 end
 
-get_R(a::SNCre) = getproperty(a, :R)
+# 2. defined undefined class and some rules
+struct UndefSNCre <: AbstractUndefSFmodel end
+SNCre() = UndefSNCre()
+(::UndefSNCre)(args...) = SNCre(args...) 
 
-# for bootstrap
-function (a::SNCre)(selected_row, ::PanelData)
-    bootstrap_model = SNCre(
-        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
-        unpack(a)[2:end]...
+lagparam(a::AR) = a.p
+lagparam(a::MA) = a.q
+lagparam(a::ARMA) = a.p + a.q
+lagparam(a::SNCre) = lagparam(a.serialcorr)
+
+
+# 3. bootstrap re-construction rules
+# (a::AbstractUndefSFmodel)(selected_row, data::AbstractData)
+function (a::SNCre)(selected_row, data::PanelData)
+    return SNCre(
+        resample(a.dist, selected_row),
+        a.ψ,
+        a.paramnames,
+        a.serialcorr,
+        a.R,
+        a.σₑ²,
+        meanofx(data.rowidx, data.frontiers; verbose = false)
     )
 
-    return bootstrap_model
 end
 
 
 """
-    meanofx(frontiers::PanelMatrix{T} where T)
+    meanofx(rowidx, frontiers::Matrix{T}, verbose) where T
 
 To estimate the correlated random effect
 
@@ -99,9 +112,9 @@ number 3 column in xmean is dropped
 5.5  1.5
 ```
 """
-function meanofx(frontiers, verbose)
-    mean_frontiers = mean.(Panelized(frontiers), dims=1)
-    noft = numberoft(frontiers)
+function meanofx(rowidx, frontiers; verbose)
+    mean_frontiers = mean.(static_panelize(frontiers, rowidx), dims=1)
+    noft = length.(rowidx)
     _xmean = [repeat(i,t) for (i,t) in zip(mean_frontiers, noft)]
     xmean = reduce(vcat, _xmean)
     cons = ones(numberofobs(xmean))
@@ -109,79 +122,84 @@ function meanofx(frontiers, verbose)
     # if the panel is balanced, the average of variable t is constant
     # `real` ensure the element type is not any which will raise error in `rref_with_pivots`
     # `reduce` for fast `hcat` operation
-    xmean, pivots = isMultiCollinearity(
-        :xmean, real(reduce(hcat, (xmean, cons))), verbose
-    )
-    return Panel(xmean, frontiers.rowidx), pivots
+    xmean, pivots = isMultiCollinearity(:xmean, real(reduce(hcat, (xmean, cons))); warn = verbose)
+    return xmean, pivots
 end
 
+#########################################################################################
+
+
+#########################################################################################
+# TODO: spec(): get the data of parameters, create names for parameters, slicing rules in LLT
+# notice that the type should be provide to utilize the multiple dispatch
+# spec(model::AbstractSFmodel, df; kwargs...)
+#########################################################################################
 
 """
-    sfspec(::Type{SNCre}, <arguments>; type, dist, σᵥ², ivar, depvar, frontiers, SCE, R, σₑ², verbose)
 
-The model: 
 
-# Arguments
-- `data::Union{Tuple{DataFrame}, Tuple{}}`: frame or matrix data
-- `type::Union{Type{Production}, Type{Cost}}`: type of economic interpretation
-- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: assumption of the inefficiency
-- `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`: 
-- `ivar::Union{Vector{<:Real}, Sumbol}`: specific data of panel model
-- `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`: dependent variable
-- `frontiers::Union{Matrix{<:Real}, NTuple{N, Symbol} where N}`: explanatory variables
-- `SCE::Union{AR, MA, ARMA}`: assumption of serial correlation
-- `R::Int`: number of correlated random effect simulation
+# Model Specific Arguments
+- `ivar`::Union{Symbol, Vector{<:Real}}: further transform to `rowidx` in function `getvar`
+
+- `SCE::Union{AR, MA, ARMA}`: assumption of serial correlation error
+- `R::Int`                  : number of correlated random effect simulation
 - `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
-"""
-function sfspec(::Type{SNCre}, data...; 
-                type, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ², 
-                verbose=true
-               )
-    # get the base variables and set up σₑ²
-    paneldata, fitted_dist, _col1, _col2 = getvar(
-        data, ivar, type, dist, σᵥ², depvar, frontiers, verbose
-    )
-    @inbounds σₑ² = isa(σₑ², Symbol) ? Base.getindex(data[1], :, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
-    
-    # generate the mean data of frontiers for the specification of correlated random effect
-    xmean, pivots = meanofx(paneldata.frontiers, verbose)
-    
-    # construct remaind first column of output estimation table
-    corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))
-    col1 = complete_template(_col1, :αᵢ, :log_σₑ², corrcol1...)
 
-    # construct remaind second column of output estimation tabel
+"""
+function spec(model::UndefSNCre, df; 
+                type::T, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ², verbose=true
+             ) where{T<:AbstractEconomicType}
+    # 1. get some base vaiables
+    paneldata, fitted_dist, _col1, _col2 = getvar(
+        df, ivar, eval(type), dist, σᵥ², depvar, frontiers, verbose
+    )
+
+    # 2. some other variables: σₑ², xmean
+    @inbounds σₑ² = σₑ² isa Symbol ? Base.getproperty(df, σₑ²)[1] : σₑ²[1] # since σₑ² will always be constant
+
+    xmean, pivots = meanofx(paneldata.rowidx, paneldata.frontiers, verbose = verbose)
+    
+    # 3. construct remaind first column of output estimation table
+    corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))
+    col1     = complete_template(_col1, :αᵢ, :log_σₑ², corrcol1...)
+
+    # 4. construct remaind second column of output estimation tabel
     if !isa(serialcorr, ARMA)
         var = corrcol1[1]
         @inbounds corrcol2 = [[Symbol(var, i) for i = 1:lagparam(serialcorr)]]
     else
         var1, var2 = corrcol1[1], corrcol1[2]
         @inbounds corrcol2 = [
-            [Symbol(var1, i) for i = 1:serialcorr.p], 
-            [Symbol(var2, i) for i = 1:serialcorr.q]
+            Symbol[Symbol(var1, i) for i = 1:serialcorr.p], 
+            Symbol[Symbol(var2, i) for i = 1:serialcorr.q]
         ]
     end
     xmean_col2 = [Symbol(:mean_, i) for i in _col2[1]]
     push!(xmean_col2, :_cons)
-    xmean_col2 = xmean_col2[pivots]
-    col2 = complete_template(_col2, xmean_col2, [:_cons], corrcol2...)
 
-    # costruct the names of parameters of the output estimation table
+    xmean_col2 = xmean_col2[pivots]
+    col2       = complete_template(_col2, xmean_col2, [:_cons], corrcol2...)
+
+    # 5. combine col1 and col2
     paramnames = paramname(col1, col2)
 
-    # generate the remain rule for slicing parameter
-    # generate the length of serially correlated error terms, σₑ² and correlated random effects
+    # 6. generate the rules for slicing parameters
     ψ = complete_template(
-        Ψ(frontier(paneldata), fitted_dist, variance(paneldata)), 
+        Ψ(paneldata.frontiers, fitted_dist, paneldata.σᵥ²), 
         numberofvar(xmean), 
         1, 
         lagparam(serialcorr)
     )
     push!(ψ, sum(ψ))
 
-    return SNCre(fitted_dist, ψ, paramnames, serialcorr, R, σₑ², xmean), paneldata
+    return model(fitted_dist, ψ, paramnames, serialcorr, R, σₑ², xmean), paneldata::PanelData{T}
 end
 
+
+#########################################################################################
+# TODO: model specification which will be printed during MLE estimation
+# modelinfo(::AbstractUndefSFmodel):
+#########################################################################################
 
 (t::AR)(::Symbol) = Symbol(typeof(t), t.p)
 (t::MA)(::Symbol) = Symbol(typeof(t), t.q)
@@ -246,7 +264,9 @@ function modelinfo(model::SNCre)
     _modelinfo(modelinfo1, modelinfo2)
 end
 
+#########################################################################################
 
-# other module
+
+# other modules
 include("./LLT.jl")
 include("extension.jl")

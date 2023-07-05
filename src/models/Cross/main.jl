@@ -1,72 +1,105 @@
+#########################################################################################
+# TODO: create the type for models
+#########################################################################################
+# 1. dist, ψ, paramnames are three necessary properties
 """
-    Cross(fitted_dist, ψ, paramnames)
+    Cross(dist, ψ, paramnames)
+
+Notice: these threee properties must be included in every model type.
 
 # Arguments
-- `fitted_dist::AbstractDist`: distibution assumption of the inefficiency
-- `ψ::Vector{Any}`: record the length of each parameter, `ψ[end]` is the arrgregate length of all parameters
+- `dist::AbstractDist`        : distibution assumption of the inefficiency
+
+- `ψ::Vector{Int64}`          : record the length of each parameter, `ψ[end]` is the 
+                              summation of of all parameters' length.
+
 - `paramnames::Matrix{Symbol}`: parameters' names used by the output estimation table
+
 """
 struct Cross{T<:AbstractDist} <: AbstractSFmodel
-    fitted_dist::T
-    ψ::Vector{Any}
+    dist::T
+    ψ::Vector{Int64}
     paramnames::Matrix{Symbol}
 end
 
+# 2. defined undefined class and some rules
+struct UndefCross <: AbstractUndefSFmodel end
+Cross() = UndefCross()
+(::UndefCross)(args...) = Cross(args...) 
 
-# for bootstrap
+
+
+# 3. bootstrap re-construction rules
+# (a::AbstractUndefSFmodel)(selected_row, data::AbstractData)
 function (a::Cross)(selected_row, ::Data)
     bootstrap_model = Cross(
-        typeofdist(a)([i[selected_row, :] for i in unpack(distof(a))]...),
-        unpack(a)[2:end]...
+        resample(a.dist, selected_row),
+        a.ψ,
+        a.paramnames
     )
 
     return bootstrap_model
 end
 
+#########################################################################################
 
+
+#########################################################################################
+# TODO: spec: get the data of parameters, create names for parameters, slicing rules in LLT
+# notice that the type should be provide to utilize the multiple dispatch
+# spec(model::AbstractSFmodel, df; kwargs...)
+#########################################################################################
 """
-    sfspec(::Type{Cross}, <arguments>; type, dist, σᵥ², depvar, frontiers, verbose)
+# Base Arguments
+- `model::Type{<:AbstractUndefSFmodel}`: undefined model to ensure type stability.
 
-The model: 
+- `df::Union{DataFrame, Nothing}`: `df isa Nothing` is the case when inputs are matrix data.
 
-# Arguments
-- `data::Union{Tuple{DataFrame}, Tuple{}}`: frame or matrix data
 - `type::Union{Type{Production}, Type{Cost}}`: type of economic interpretation
-- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: distribution assumption of the inefficiency
-- `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`: 
-- `ivar::Union{Vector{<:Real}, Sumbol}`: specific data of panel model
-- `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`: dependent variable
+
+- `dist::Tuple{Union{Half, Trun, Expo}, Vararg{Union{Symbol, Matrix{T}}}} where{T<:Real}`: 
+   distribution assumption of the inefficiency
+
+- `σᵥ²::Union{Matrix{T}, Union{Symbol, NTuple{N, Symbol} where N}}`
+
+- `depvar::Union{AbstractVecOrMat{<:Real}, Symbol}`            : dependent variable
 - `frontiers::Union{Matrix{<:Real}, NTuple{N, Symbol} where N}`: explanatory variables
-- `SCE::Union{AR, MA, ARMA}`: assumption of serial correlation
-- `R::Int`: number of correlated random effect simulation
-- `σₑ²::Union{Real, Symbol}`: variance of the random error of the correlated random effect
+
 """
-function sfspec(::Type{Cross}, data...; type, dist, σᵥ², depvar, frontiers, verbose=true)
-    # get the base vaiables
-    crossdata, fitted_dist, _col1, _col2 = getvar(
-        data, type, dist, σᵥ², depvar, frontiers, verbose
+function spec(model::UndefCross, df; 
+              type, dist, σᵥ², depvar, frontiers, verbose = true
+             )
+    # 1. get some base vaiables
+    crossdata, dist, _col1, _col2 = getvar(
+        df, type, dist, σᵥ², depvar, frontiers, verbose
     )
-   
-    # construct remaind first column of output estimation table
+
+    # 2. some other variables
+
+    # 3. construct remaind first column of output estimation table
     col1 = complete_template(_col1)
 
-    # construct remaind second column of output estimation tabel
+    # 4. construct remaind second column of output estimation tabel
     col2 = complete_template(_col2)
 
-    # costruct the names of parameters of the output estimation table
+    # 5. combine col1 and col2
     paramnames = paramname(col1, col2)
 
-    # generate the remain rule for slicing parameter
+    # 6. generate the rules for slicing parameters
     ψ = complete_template(
-        Ψ(frontier(crossdata), fitted_dist, variance(crossdata)
-)
+        Ψ(crossdata.frontiers, dist, crossdata.σᵥ²)
     )
     push!(ψ, sum(ψ))
-
-    return Cross(fitted_dist, ψ, paramnames, ), crossdata
+    
+    return model(dist, ψ, paramnames), crossdata
 end
 
+#########################################################################################
 
+
+#########################################################################################
+# TODO: modelinfo(): model specification which will be printed during MLE estimation
+#########################################################################################
 function modelinfo(::Cross)
     modelinfo1 = "Base stochastic frontier model"
     
@@ -86,6 +119,8 @@ function modelinfo(::Cross)
 """
     _modelinfo(modelinfo1, modelinfo2)
 end
+
+#########################################################################################
 
 
 # other module

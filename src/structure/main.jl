@@ -1,71 +1,104 @@
-usedata(data_path::String) = DataFrame(File(data_path))
-usedata(df::DataFrame) = df
-usedata() = nothing
-
-
-sfspec(data...; model::Symbol, kwargs...) = sfspec(eval(model), data...; kwargs...)
+usedata(data::String) = DataFrame(CSV.File(data))
+usedata(data)         = data
 
 
 """
-    setindex!(A::OrderedDict{T, U}, X::Union{Vector{T}, NTuple{N, T} where N}, ind::Union{Vector{U}, NTuple{M, U} where M}) where{T, U}
+    sfspec(; data, model, kwargs...)
 
-Oordered dictionary utilities to set multiple indexes in cleaner way
+This is the highest api to wrap the specification of model. Multiple dispatch is implemented
+after the `model` is evaluated which can be found in model specific function `spec`.
+
+"""
+sfspec(; data = nothing, model, kwargs...) = spec(model, usedata(data); kwargs...)
+
+
+"""
+    sfopt(;warmstart_solver = Optim.NelderMead(), 
+           warmstart_maxIT  = 100, 
+           main_solver      = Optim.Newton(), 
+           main_maxIT,      = 2000,
+           tolerance        = 1e-8, 
+           show_trace       = false,
+           verbose          = true, 
+           table_format     = :text
+          )
+
+Define Hyperparmeters for the MLE estimatation. The `solver` is the optimiazation Algorithm,
+and to see different algorithms, check out Optim.jl. The option of `table_format` is used
+by PrettyTables.jl. Possible selections are: :text, :html, :latex. Moreover, Users can 
+decide to store the trace in optimiazation procedure or see some provided information 
+such as the Muliticollinearity by set `verbose` to `true`.
+
+# Arguments
+- `warmstart_solver::Optim.AbstractOptimizer`: to forbidden warmup, set it to be `nothing`
+- `warmstart_maxIT::Int64`                   : maximum iterations for warmup optimiazation
+- `main_solver::Optim.AbstractOptimizer`     : main solver, default to `Optim.Newton()`
+- `main_maxIT::Int64`                        : maximum iterations for main optimiazation
+- `torlerance::Float64`                      : converge if gradient < `tolerance`
+- `show_trace::Bool`                         : wheter to show the trace of the main optimiazation
+- `verbose::Bool`
+- `table_format::Symbol`
+
+"""
+function sfopt(;warmstart_solver = Optim.NelderMead(),
+                warmstart_maxIT  = 100,
+                main_solver      = Optim.Newton(),
+                main_maxIT       = 2000,
+                tolerance        = 1e-8,
+                show_trace       = false,
+                verbose          = true,
+                table_format     = :text
+              )
+
+    opt = (
+        warmstart_solver = warmstart_solver,
+        warmstart_maxIT  = warmstart_maxIT,
+        main_solver      = main_solver,
+        main_maxIT       = main_maxIT,
+        tolerance        = tolerance,
+        show_trace       = show_trace,
+        verbose          = verbose,
+        table_format     = table_format
+    )
+
+    return opt
+end
+
+
+"""
+    reset_options(tp::NamedTuple; kwargs...)
+
+It's used in `sfmarginal_bootstrap` to simply given the same kewyward arguments, options
+can be modified in bootstrap.
 
 # Examples
 ```juliadoctest
-julia> example = OrderedDict{Symbol, Int}(:a=>3, :b=>2)
-OrderedCollections.OrderedDict{Symbol, Int64} with 2 entries:
-  :a => 3
-  :b => 2
+julia> opt = (
+           warmstart_solver = Optim.NelderMead(),
+           warmstart_maxIT  = 200,
+           main_solver      = Optim.Newton(),
+           main_maxIT       = 2000,
+           tolerance        = 1e-8,
+           verbose          = true,
+           table_format     = :text
+        );
 
-julia> setindex!(example, (4, 4), (:a, :b)); example
-OrderedDict{Symbol, Int64} with 2 entries:
-  :a => 4
-  :b => 4
 
-See also: [`getindex`](@ref), [`sfopt`](@ref)
+julia> new_opt = reset_options(opt; warmstart_solver = nothing, main_maxIT = 30);
+
+julia> new_opt.main_maxIT
+30
 ```
-"""
-function setindex!(A, X, ind)
-    defaultKey = keys(A)
-    for i in eachindex(X)
-        j = ind[i]
-        j in defaultKey || throw("misspecification of the keywords argmentus $j in OrderedDict") 
-        Base.setindex!(A, X[i], j)
-    end
-end
 
 """
-    sfopt(;kwargs...)
+function reset_options(tp; kwargs...)
+    key = keys(tp)
+    val = collect(values(tp))
 
-Defining Hyperparmeters with default for the mle estimatation.
+    idx = Int64[findfirst(x->x==i, key) for i in keys(kwargs)]
+    val[idx] .= values(values(kwargs)) 
 
-# Hyperparmeters
-- warmstart_solver
-- warmstart_maxIT
-- main_solver
-- main_maxIT
-- tolerance
-- table_format
-
-See also: [`setindx!`](@ref)
-"""
-function sfopt(;kwargs...)
-    default_opt = OrderedDict{Symbol, Any}(
-        :warmstart_solver=>:NelderMead, 
-        :warmstart_maxIT=>100,
-        :main_solver=>:Newton,
-        :main_maxIT=>2000,
-        :tolerance=>1e-8,
-        :verbose=>true,
-        :table_format=>:text
-    )
-    # values(kwags)` get a named tuple
-    # setindex!(A, X, inds...)
-    length(kwargs) != 0 && setindex!(default_opt, values(values(kwargs)), keys(kwargs))
-    default_opt[:warmstart_solver] !== nothing && (default_opt[:warmstart_solver] = eval(default_opt[:warmstart_solver])())
-    default_opt[:main_solver] = eval(default_opt[:main_solver])()
-    return default_opt
+    return NamedTuple{key}(tuple(val...))
 end
 
 
@@ -90,7 +123,7 @@ julia> sfinit(log_σᵤ²=(-0.1, -0.1, -0.1, -0.1), log_σᵥ²=-0.1)
 (log_σᵤ² = (-0.1, -0.1, -0.1, -0.1), log_σᵥ² = -0.1)
 ```
 """
-sfinit(init::Vector) = init
+sfinit(init::AbstractVector) = init
 sfinit(;kwargs...) = values(kwargs)
 
 
@@ -100,12 +133,12 @@ sfinit(;kwargs...) = values(kwargs)
 Calculate coefficient, log likelihood, skewnewss of OLS
 """
 function olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
-    β0 = frontiers \ depvar
+    β0    = frontiers \ depvar
     resid = depvar - frontiers*β0
-    sse = sum((resid).^2)  
-    ssd = sqrt(sse/(nofobs-(nofx+noffixed))) # sample standard deviation; σ² = (1/(N-K))* Σ ϵ^2
-    ll = sum(normlogpdf.(0, ssd, resid)) # ols log-likelihood
-    sk = sum(resid.^3 / (ssd^3*nofobs)) # skewnewss of ols residuals
+    sse   = sum(resid .^ 2)  
+    ssd   = sqrt( sse / ( nofobs - (nofx+noffixed) ) ) # sample standard deviation; σ² = (1/(N-K))* Σ ϵ^2
+    ll    = sum(normlogpdf.(0, ssd, resid)) # ols log-likelihood
+    sk    = sum(resid.^3 / (ssd^3*nofobs)) # skewnewss of ols residuals
 
     return β0, ll, sk
 end
@@ -122,7 +155,7 @@ The procedure is first calculating the ols estimator for `frontiers` through `ol
 then set 0.1 to be the default initial condition for all the other parameters.
 
 """
-function initial_condition(frontiers, depvar, init::Vector, nofx, nofobs, noffixed; kargs...)
+function initial_condition(frontiers, depvar, init::AbstractVector, nofx, nofobs, noffixed; kargs...)
     _, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
     return init, llols, skols
@@ -131,31 +164,33 @@ end
 function initial_condition(frontiers, depvar, init::NamedTuple, nofx, nofobs, noffixed; kwargs...)
     β0, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
-    startpt = ones(AbstractFloat, kwargs[:nofparam]) .* 0.1
-    startpt[1:nofx] = β0
-    template = kwargs[:paramnames]
+    startpt          = fill(0.1, kwargs[:nofparam])
+    startpt[1:nofx] .= β0
+    template         = kwargs[:paramnames]
+
     push!(template, :end)  # to prevent can't getnext
+
     for i in keys(init)
-        beg = findfirst(x->x==i, template)
-        en = findnext(x->x!=Symbol(""), template, beg+1) - 1
+        beg              = findfirst(x->x==i, template)
+        en               = findnext(x->x!=Symbol(""), template, beg+1) - 1
         startpt[beg:en] .= Base.getproperty(init, i)
     end
 
     return startpt, llols, skols
 end
 
-function initial_condition(frontiers, depvar, init::Nothing, nofx, nofobs, noffixed; kwargs...)
+function initial_condition(frontiers, depvar, ::Nothing, nofx, nofobs, noffixed; kwargs...)
     β0, llols, skols =  olsinfo(frontiers, depvar, nofx, nofobs, noffixed)
 
-    startpt = ones(AbstractFloat, kwargs[:nofparam]) .* 0.1
-    startpt[1:nofx] = β0
+    startpt          = fill(0.1, kwargs[:nofparam])
+    startpt[1:nofx] .= β0
 
     return startpt, llols, skols
 end
 
 
 """
-    sfmodel_fit(;spec, options init)
+    sfmodel_fit(;spec, options, init)
 
 # Arguments
 - `spec::Tuple{<:AbstractSFmodel, <:AbstractData}`
@@ -168,42 +203,44 @@ There are three main process:
 2. mle estimation
 3. some extension(e.g. inefficiency index, marginal effect...)
 
-See also: [`sfopt`](@ref), [`sfinit`](@ref), [`startpt`](@ref)
-
 """
 function sfmodel_fit(;spec,
-                      options=nothing,
-                      init=nothing
+                      options = nothing,
+                      init    = nothing
                     )
     model, data = spec
     # set the mle hyperparmeters
-    options === nothing && (options = sfopt())
+    opt = options isa Nothing ? sfopt() : options
 
-    # set the initial condition
     # only TFE_WH2010, TFE_CSW2014 should be adjust to numberofi
     noffixed = 0
+
+    # set the initial condition
     startpt, llols, skols = initial_condition(
-        frontier(data), dependentvar(data), init, get_paramlength(model)[1], numberofobs(data), noffixed;
-        nofparam=numberofparam(model), paramnames=get_paramname(model)[:, 1]
+        data.frontiers, 
+        data.depvar, 
+        init, 
+        model.ψ[1], 
+        numberofobs(data), 
+        noffixed;
+        nofparam   = numberofparam(model), 
+        paramnames = model.paramnames[:, 1]
     )
 
-    options[:verbose] && modelinfo(model)
-    _Hessian, ξ, warmup_opt, main_opt = mle(model, data, options, startpt)
-    opt_detail = isnothing(warmup_opt) ? (main_opt,) : (main_opt, warmup_opt)
+    opt.verbose && modelinfo(model)
+    func, ξ, warmup_iter, main_opt = mle(model, data, opt, startpt)
     
     # output the mle optimiazation results
-    diagonal = post_estimation( _Hessian, ξ)  # diagonostic
+    diagonal = post_estimation(func, ξ)
 
     # efficiency and inefficiency index
     jlms, bc = jlmsbc(ξ, model, data)
-    loglikelihood = round(-1*opt.minimum(main_opt); digits=5)
+    loglikelihood = round(-1*Optim.minimum(main_opt); digits=5)
 
-    if options[:verbose]
-        output_estimation(numberofobs(data), warmup_opt, main_opt)
-        stderr, cilow, ciup = output_table(get_paramname(model), ξ, diagonal, numberofobs(data), options[:table_format])
-        
-        
-        println("Table format: $(options[:table_format]). Use `sfopt(...)` to choose between `:text`, `:html`, and `:latex`.")
+    if opt.verbose
+        output_estimation(numberofobs(data), warmup_iter, main_opt, opt.tolerance)
+        output_table(model.paramnames, ξ, diagonal, numberofobs(data), opt.table_format)
+        println("Table format: $(opt.table_format). Use `sfopt(...)` to choose between `:text`, `:html`, and `:latex`.")
 
         printstyled("\n\n*********************************\n "; color=:cyan)
         printstyled("    Additional Information     \n"; color=:cyan); 
@@ -213,16 +250,17 @@ function sfmodel_fit(;spec,
         println(" - The sample mean of the JLMS inefficiency index: $(round(mean(jlms), digits=5))")
         println(" - The sample mean of the BC efficiency index:     $(round(mean(bc), digits=5))")
         println("")
-        println(" - Check out the availabel API in file: structure/API.jl")
-        println("     - `res` is the return of sfmodel_fit, `res = sfmodel_fit(...)`")
-        println("     - `sfmaximum(res)`: the log-likelihood value of the model;")
+        println(" - Check out the availabel API in file: structure/api.jl")
+        println("     - `res`                 : the return of sfmodel_fit, `res = sfmodel_fit(...)`")
+        println("     - `sfmaximum(res)`      : the log-likelihood value of the model;")
         println("     - `sf_inefficiency(res)`: Jondrow et al. (1982) inefficiency index;")
-        println("     - `sf_efficiency(res)`: Battese and Coelli (1988) efficiency index;")
-        println(" - To see some examples, check out the folder: examples\n")
+        println("     - `sf_efficiency(res)`  : Battese and Coelli (1988) efficiency index;")
+        println(" - Check out more examples in : examples/ \n")
         printstyled("*********************************\n\n"; color=:cyan)
     end
 
-    res = sfresult(ξ, model, data, options, jlms, bc, loglikelihood, opt_detail)
+    # res = SFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+    res = SFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
 
     return res
 end
