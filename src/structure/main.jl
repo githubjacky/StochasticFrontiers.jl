@@ -189,9 +189,9 @@ function initial_condition(frontiers, depvar, ::Nothing, nofx, nofobs, noffixed;
 end
 
 
-function output(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+function output(ξ, model, data, startpt, opt, jlms, bc, loglikelihood, main_opt)
 
-    main_res = MainSFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+    main_res = MainSFresult(ξ, model, data, startpt, opt, jlms, bc, loglikelihood, main_opt)
     model_res = SFresult(main_res)
 
     return model_res
@@ -260,17 +260,18 @@ function sfmodel_fit(;spec,
         println(" - The sample mean of the BC efficiency index:     $(round(mean(bc), digits=5))")
         println("")
         println(" - Check out the availabel API in file: README.md")
-        println("     - `res`                 : the return of sfmodel_fit, `res = sfmodel_fit(...)`")
-        println("     - `sfmaximum(res)`      : the log-likelihood value of the model;")
+        println("     - `res`:                  the return of sfmodel_fit, `res = sfmodel_fit(...)`")
+        println("     - `sfmaximum(res)`:       the log-likelihood value of the model;")
         println("     - `sf_inefficiency(res)`: Jondrow et al. (1982) inefficiency index;")
-        println("     - `sf_efficiency(res)`  : Battese and Coelli (1988) efficiency index;")
+        println("     - `sf_efficiency(res)`:   Battese and Coelli (1988) efficiency index;")
+        println()
 
         println(" - Check out more examples in : examples/ \n")
         printstyled("*********************************\n\n"; color=:cyan)
     end
 
     # res = SFresult(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
-    res = output(ξ, model, data, opt, jlms, bc, loglikelihood, main_opt)
+    res = output(ξ, model, data, startpt, opt, jlms, bc, loglikelihood, main_opt)
 
     return res
 end

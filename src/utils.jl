@@ -1,6 +1,7 @@
 """
     convert(::Type{Vector}, a::Tuple{Vararg{T}}) where T 
     convert(::Type{Vector}, a::T) where T
+using Optim: sigma
     convert(::Type{Matrix{T}}, a::AbstractVector) where T
 
 *optinal utility function*

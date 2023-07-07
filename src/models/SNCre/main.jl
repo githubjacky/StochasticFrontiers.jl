@@ -177,7 +177,7 @@ function spec(model::UndefSNCre, df;
     xmean, pivots = meanofx(paneldata.rowidx, paneldata.frontiers, verbose = verbose)
     
     # 3. construct remaind first column of output estimation table
-    corrcol1 = isa(serialcorr, AR) ? (:ρ,) : (isa(serialcorr, MA) ? (:θ,) : (:ρ, :θ))
+    corrcol1 = isa(serialcorr, AR) ? (:ϕ,) : (isa(serialcorr, MA) ? (:θ,) : (:ϕ, :θ))
     col1     = complete_template(_col1, :αᵢ, :log_σₑ², corrcol1...)
 
     # 4. construct remaind second column of output estimation tabel
@@ -228,7 +228,7 @@ end
 function (t::AR)(::String)
     ϵᵢₜ = ""
     for i = 1:t.p
-        ϵᵢₜ *= "ρ$i * ϵᵢₜ₋$i  + "
+        ϵᵢₜ *= "ϕ$i * ϵᵢₜ₋$i  + "
     end
     ϵᵢₜ *= "ηᵢₜ"
     return ϵᵢₜ
@@ -244,7 +244,7 @@ end
 function (t::ARMA)(::String)
     ϵᵢₜ = ""
     for i = 1:t.p
-        ϵᵢₜ *= "ρ$i * ϵᵢₜ₋$i  + "
+        ϵᵢₜ *= "ϕ$i * ϵᵢₜ₋$i  + "
     end
     for i = 1:t.q
         ϵᵢₜ *= "θ$i * ηᵢₜ₋$i  + "

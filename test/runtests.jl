@@ -131,7 +131,7 @@ using Test, Distributions
 
         marginal, marginal_mean = sfmarginal(res)
         std_ci, bsdata          = sfmarginal_bootstrap(res, R = 100, seed = 1232, main_maxIT = 100)
-        ci                      = sfCI(bsdata, marginal_mean, level = 0.10, verbose = false)
+        ci                      = sfCI(bsdata, marginal_mean, level = 0.10)
 
         @test sfmaximizer(res)[1:2] ≈ [0.25821, 0.17173]  atol = 1e-5
         @test ci[1, :]                 ≈ [-0.00687, 0.00073] atol = 1e-5

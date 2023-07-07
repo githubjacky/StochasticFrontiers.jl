@@ -21,11 +21,12 @@ sfmaximizer(a::SFresult)     = a.main_res.ξ
 sfmodel(a::SFresult)         = a.main_res.model
 sfdata(a::SFresult)          = a.main_res.data
 sfoptions(a::SFresult)       = a.main_res.options
+sfstartpt(a::SFresult)       = a.main_res.startpt
 sf_inefficiency(a::SFresult) = a.main_res.jlms
 sf_efficiency(a::SFresult)   = a.main_res.bc
 sfmaximum(a::SFresult)       = a.main_res.loglikelihood
-sftrace(a::SFresult)         = Optim.g_norm_trace(a.main_res.main_opt)
-sfcheck_converge(a::SFresult) = println(a.main_res.main_opt)
+sftrace(a::SFresult)         = Optim.g_norm_trace(a.main_res.fit_res)
+sfcheck_converge(a::SFresult) = println(a.main_res.fit_res)
 
 
 """

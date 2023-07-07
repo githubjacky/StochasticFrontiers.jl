@@ -59,20 +59,19 @@ Expo(;λ)      = Expo(λ)
 
 
 # for read in the data fiven the column symbol
-(a::AbstractDist)(::Nothing) = a
 
-function (a::Half)(df::DataFrame) 
+function (a::Half)(df::Union{DataFrame, Nothing}) 
     Half(
         isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df = df))[1]
     )
 end
-function (a::Trun)(df::DataFrame) 
+function (a::Trun)(df::Union{DataFrame, Nothing}) 
     Trun(
         isMultiCollinearity(:μ, readframe(a.μ, df = df))[1],
         isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df = df))[1]
     )
 end
-function (a::Expo)(df::DataFrame) 
+function (a::Expo)(df::Union{DataFrame, Nothing}) 
     Expo(
         isMultiCollinearity(:λ, readframe(a.λ, df = df))[1]
     )
@@ -175,11 +174,12 @@ struct MainSFresult{T, S, U, V}
     ξ::Vector{Float64}
     model::T
     data::S
+    startpt::Vector{Float64}
     options::U
     jlms::Vector{Float64}
     bc::Vector{Float64}
     loglikelihood::Float64
-    main_opt::V
+    fit_res::V
 end
 
 

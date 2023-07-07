@@ -144,7 +144,7 @@ Calculate the confidence interval of observed mean marginal effect through boots
 - `verbose::Bool`
 
 """
-function sfCI(bootdata, _observed; level = 0.05, verbose = true)
+function sfCI(bootdata, _observed; level = 0.05)
     # bias-corrected (but not accelerated) confidence interval 
     # For the "accelerated" factor, need to estimate the SF model 
     # for every jack-knifed sample, which is expensive.
@@ -170,7 +170,6 @@ function sfCI(bootdata, _observed; level = 0.05, verbose = true)
         ci[i, :]      .= [round(cilow, digits=5), round(ciup, digits=5)]
     end
 
-    verbose && println("\nBias-Corrected $(100*(1-level))% Confidence Interval:\n")
 
     return ci
 end
@@ -263,15 +262,17 @@ function sfmarginal_bootstrap(result;
     end  # end of the bootstrap process
 
     theSTD = sqrt.(sum((sim_res .- obs_marg_mean).^2, dims=1) ./ (R-1))
-    ci_mat = sfCI(sim_res, obs_marg_mean, level = level, verbose = options.verbose)
+    ci_mat = sfCI(sim_res, obs_marg_mean, level = level)
 
     if options.verbose
         table_content = hcat(marg_label, obs_marg_mean', theSTD', ci_mat)
 
-        l = 100 * (1-level)
+        l = trunc(Int64, 100 * (1-level))
         header = [
-            " ", "mean marginal effect of E(u)", "Std. Err.", "Lower $l",  "Upper $l"
+            " ", "mean marginal effect of E(u)", "Std. Err.", "Lower $l%",  "Upper $l%"
         ]
+
+        println("\nBias-Corrected $l% Confidence Interval:\n")
 
         pretty_table(
             table_content,
