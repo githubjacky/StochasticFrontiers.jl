@@ -9,7 +9,7 @@ in Truncated Normal and (σᵤ²,) in Half Nomral. Then, the data in `args` will
 One excample for args is the :hscale.
 
 """
-function _marg_data(model::AbstractSFmodel, args...)
+function _marg_data(model, args...)
     _data = begin
         length(args) == 0 ? 
             Matrix{Float64}[unpack(model.dist)...] : 
@@ -23,7 +23,7 @@ end
 
 
 """
-    _marginal_coeff(::SFmodel, ξ, ψ)
+    _marginal_coeff(ξ, ψ)
 
 This is the template of getting the coefficients of distribution. Notice that it's not
 suitalbe for some models such as those have scaling property.
@@ -133,14 +133,17 @@ end
 
 
 """
-    sfCI(; bootdata=nothing, observed=nothing, level=0.5, verbose=false)
+    sfCI(bootdata, _observed; level = 0.5)
 
 Calculate the confidence interval of observed mean marginal effect through bootstrap.
 
 # Arguments
 - `bootdata::Matrix{<:Real}`: results of the bootstrap simulation
+
 - `observed::Union{Vector{<:Real}, Real, Tuple, NamedTuple}: observed mean
+
 - `level::AbstractFloat`: confidence level
+
 - `verbose::Bool`
 
 """

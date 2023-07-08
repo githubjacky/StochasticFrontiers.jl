@@ -1,12 +1,10 @@
 """
-    sfmarginal(result::NamedTuple; bootstrap=false, kwargs...)
+    sfmarginal(result::SFresult)
 
-By default, calculate the observational marginal effects. Set `bootstrap` to true, if you
-want to bootstrap the mean marginal effects. Check the function `bootstrap_marginaleffect`
-to see the keyword arguments for bootstrap operation.
+Calculate the marginal effect, for the bootstrap operation, use the `sfmarginal_bootstrap`
 
 """
-function sfmarginal(result::SFresult)
+function sfmarginal(result)
     mm, label     = marginaleffect(result.main_res.ξ, result.main_res.model, result.main_res.data)
     label         = Symbol[Symbol(:marg_, i) for i in label]
 

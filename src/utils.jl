@@ -386,20 +386,6 @@ for the `output_table()` are included to return.
 *Warning: this method only create the base template, further completion should
 be done applying model specific method `sfspec` which should be further defined.*
 
-# Examples
-```juliadoctest
-julia> y=[2, 2, 4, 3, 3]; X=[3 5; 4 7; 5 9; 8 2; 3 2];
-
-julia> data, col1, col2 = getvar((), Prod, (Half, (ones(5),)), ones(5), y, X)
-(StochasticFrontiers.Data{DataType, Half{Matrix{Float64}}, Matrix{Float64}, Matrix{Int64}, Matrix{Int64}}(Prod, Half{Matrix{Float64}}([1.0; 1.0; … ; 1.0; 1.0;;]), [1.0; 1.0; … ; 1.0; 1.0;;], [2; 2; … ; 3; 3;;], [3 5; 4 7; … ; 8 2; 3 2], 5), [:fontiers, :log_σᵤ², :log_σᵥ², #undef, #undef, #undef, #undef, #undef, #undef, #undef  …  #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef], [[:frontiers1, :frontiers2], [:_cons], [:_cons], #undef, #undef, #undef, #undef, #undef, #undef, #undef  …  #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef])
-
-julia> ivar = [1, 1, 1, 2, 2]; md = hcat(ivar, y, X, ones(5)); frd = DataFrame(md, [:ivar, :y, :X1, :X2, :_cons]);
-
-julia> paneldata, col1, col2 = getvar(
-           (frd,), :ivar, Prod, (Half, (:_cons,)), :_cons, :y, (:X1, :X2)
-       )
-(StochasticFrontiers.PanelData{DataType, Half{Panel{Matrix{Float64}}}, Panel{Matrix{Float64}}, Panel{Matrix{Float64}}, Panel{Matrix{Float64}}}(Prod, Half{Panel{Matrix{Float64}}}(Any[1.0; 1.0; … ; 1.0; 1.0;;]), Any[1.0; 1.0; … ; 1.0; 1.0;;], Any[2.0; 2.0; … ; 3.0; 3.0;;], Any[3.0 5.0; 4.0 7.0; … ; 8.0 2.0; 3.0 2.0], 5), [:fontiers, :log_σᵤ², :log_σᵥ², #undef, #undef, #undef, #undef, #undef, #undef, #undef  …  #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef], [[:X1, :X2], [:_cons], [:_cons], #undef, #undef, #undef, #undef, #undef, #undef, #undef  …  #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef, #undef])
-``` 
 
 """
 function getvar(df, type::T, _dist, _σᵥ², _depvar, _frontiers, verbose) where{T<:AbstractEconomicType}
@@ -555,7 +541,7 @@ be done applying model specific method `sfspec`.*
 function Ψ(frontiers, fitted_dist, σᵥ²)
     # length of 30 just for the prevention
     # notice that the type can't be assiguned(`Vector{Int}(undf, 30)` is not allowed) since we need to define elements later
-    ψ = Vector{Int64}(undef, 3)
+    ψ       = Vector{Int64}(undef, 3)
     ψ[1:3] .= numberofvar(frontiers), sum(numberofvar.(unpack(fitted_dist))), numberofvar(σᵥ²)
 
     return ψ

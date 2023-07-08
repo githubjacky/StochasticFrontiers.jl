@@ -1,5 +1,5 @@
 """
-    mle(model, data, optinos, _coevec)    
+    mle(model, data, optinos, init)    
 
 Maximum likelihood estimation
 
@@ -59,7 +59,7 @@ end
 """
     post_estimation(func, _coevec)    
 
-Check the var-cov matrix
+Check the variance covariance matrix
 
 # Arguments
 - `func::NLSolversBase.TwiceDifferentiable{T} where T`: Otpim object
@@ -163,10 +163,11 @@ Show the estimation table.
 function output_table(paramnames, _coevec, diagonal, nofobs, format)
     stderr  = sqrt.(diagonal)
     t_stats = _coevec ./ stderr
-    p_value = [pvalue(TDist(nofobs - length(_coevec)), i; tail = :both) for i in t_stats]
+    p_value = Float64[pvalue(TDist(nofobs - length(_coevec)), i; tail = :both) for i in t_stats]
     tt      = cquantile(Normal(0,1), 0.025)
-    cilow   = [round(_coevec[i]-tt*stderr[i], digits=5) for i = eachindex(_coevec)]
-    ciup    = [round(_coevec[i]+tt*stderr[i], digits=5) for i = eachindex(_coevec)]
+    cilow   = Float64[round(_coevec[i]-tt*stderr[i], digits=5) for i = eachindex(_coevec)]
+    ciup    = Float64[round(_coevec[i]+tt*stderr[i], digits=5) for i = eachindex(_coevec)]
+
     pretty_table(
         hcat(paramnames, _coevec, stderr, t_stats, p_value, cilow, ciup),
         header           = ["", "Var.", "Coef.", "Std. Err.", "z", "Pr(>|z|)", "Lower 95%", "Upper 95%"],
