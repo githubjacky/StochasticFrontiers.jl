@@ -22,4 +22,4 @@ Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/git
 - for the usage please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
 
 ## developers
-to develop a new model, check out the [src/models/template/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/template) folders
+To develop a new model, check out the [src/models/template/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/template) folders. You can simply copy the **template** folder and rename it.
