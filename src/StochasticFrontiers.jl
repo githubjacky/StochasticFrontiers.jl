@@ -1,7 +1,7 @@
 module StochasticFrontiers
 
 # export functionality for model construction
-export usedata, sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI, sfmarginal_bootstrap
+export sfspec, sfopt, sfinit, sfmodel_fit, sfmarginal, sfCI, sfmarginal_bootstrap
 
 # api for  `sfresult`
 export plot_inefficieny, sfmaximizer, sfmodel, sfdata, sfstartpt, sfoptions, sf_inefficiency, 
