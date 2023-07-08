@@ -1,6 +1,6 @@
 # StochasticFrontiers
 
-*the purpose of this repository is creat a bear bone structure for further development*
+*the purpose of this repository is creating a bear bone structure for further development in estimation of stochastic frontiers models using julia*
 
 ## install
 Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/githubjacky/StochasticFrontiers.jl
