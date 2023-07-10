@@ -1,9 +1,10 @@
 # StochasticFrontiers
-
 *the purpose of this repository is creating a bear bone structure for further development*
+
 
 ## install
 Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/githubjacky/StochasticFrontiers.jl
+
 
 ## models
 - `Cross`: basic stochastic frontier models
@@ -11,7 +12,13 @@ Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/git
 - `PFEWH`: [Estimating fixed-effect panel stochastic frontier models by model transformation](https://www.sciencedirect.com/science/article/abs/pii/S0304407610000047)
 - `SNCre`: [Flexible panel stochastic frontier model with serially correlated errors](https://www.sciencedirect.com/science/article/abs/pii/S0165176517304871)
 
-## users
+
+## Content
+1. [users](#users)
+2. [development](#developers)
+
+
+## users <a name="users"></a>
 ### fit the model 
 #### `sfspec`: wrapper for assigning the data and some model specific parameters.
 - examples in examples/Cross_Trun.ipynb
@@ -194,11 +201,148 @@ ci = sfCI(bsdata, marginal_mean, level = 0.1)
 second return of `sfmarginal`.
 
 ## developers
-To develop a new model, check out the [src/models/template/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/template) folders. You can simply copy the **template** folder and rename it.
+To develop a new model, check out the [src/models/template/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/template)
+folders. You can simply copy the **template** folder and rename it.
 
-Conceptually, there are three files should be create: main.jl, LLT.jl, extension.jl
-- main.jl: basic specification such as the model type, bootstrap reconstruciton rules.
-- LLT.jl: composite error term and log-likelihood
-- extension.jl: jlms and bc index, marginal effect
+Basically, there are three files should be created: main.jl, LLT.jl and extension.jl. Some 
+function is necessary to implement such as the `spec` and `modelinfo` in main.jl, 
+`composite_error` and `LLT` in LLT.jl and `jlmsbc`, `marginal_data`, `marginal_coeff`,
+`marginal_label` and `unconditional_mean` in extension.jl. For quick development,
+there are some templates for these functions.
+
+Let me introduce the whole structure taking models `Cross` and `SNCre` as the example.
+
+### main.jl
+#### create the type for models
+1. define the model and dist, ψ and paramnames are three necessary fields
+```julia
+# Cross
+struct Cross{T<:AbstractDist} <: AbstractSFmodel
+    dist::T
+    ψ::Vector{Int64}
+    paramnames::Matrix{Symbol}
+end
+
+# SNCre
+struct SNCre{T, S} <: AbstractPanelModel
+    dist::T
+    ψ::Vector{Int64}
+    paramnames::Matrix{Symbol}
+    serialcorr::S
+    R::Int64
+    σₑ²::Float64
+    xmean::Matrix{Float64}
+end
+```
+
+2. define the "undefined" model to ensure type stability
+```julia
+# Cross
+struct UndefCross <: AbstractUndefSFmodel end
+Cross() = UndefCross()
+(::UndefCross)(args...) = Cross(args...) 
+
+# SNCre
+struct UndefSNCre <: AbstractUndefSFmodel end
+SNCre() = UndefSNCre()
+(::UndefSNCre)(args...) = SNCre(args...) 
+```
+
+3. bootstrap re-construction rules
+```julia
+# Cross
+function (a::Cross)(selected_row, ::Data)
+    bootstrap_model = Cross(
+        resample(a.dist, selected_row),
+        a.ψ,
+        a.paramnames
+    )
+
+    return bootstrap_model
+end
+
+# SNCre
+function (a::SNCre)(selected_row, data::PanelData)
+    return SNCre(
+        resample(a.dist, selected_row),
+        a.ψ,
+        a.paramnames,
+        a.serialcorr,
+        a.R,
+        a.σₑ²,
+        meanofx(data.rowidx, data.frontiers; verbose = false)
+    )
+
+end
+```
+
+4. model specific result
+```julia
+# Cross
+struct Crossresult <: AbstractSFresult end
+
+function SFresult(main_res::MainSFresult{T, S, U, V}) where{T<:Cross, S, U, V}
+    return SFresult(main_res, Crossresult())
+end
+
+
+# SNCre
+struct SNCreresult <: AbstractSFresult
+    aic::Float64
+    bic::Float64
+end
+
+function SFresult(main_res::MainSFresult{T, S, U, V}) where{T<:SNCre, S, U, V} 
+    aic = -2 * main_res.loglikelihood + numberofparam(main_res.model)
+    bic = -2 * main_res.loglikelihood + numberofparam(main_res.model) * log(numberofobs(main_res.data))
+    return SFresult(main_res, SNCreresult(aic, bic))
+end
+
+sfAIC(a::SFresult) = round(a.model_res.aic, digits = 5)
+sfBIC(a::SFresult) = round(a.model_res.bic, digits = 5)
+```
+
+#### `spec`
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L79)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L166)
+
+#### `modelinfo`
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L113)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L256)
+
+### LLT.jl
+#### composite error term
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L6)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L151)
+
+#### log-likelihood
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L26)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L198)
+
+### extension.jl
+In this section, I will use `Cross` and `PFEWH` as the above 2 models both take advantage 
+of the template functions.
+
+#### jlms and bc index
+- template `jlmsbc`: [_jlmsbc](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L159)
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L7)
+- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L31)
+
+#### utility function for marginal effect
+- template `marginal_data`: [_marg_data](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L1)
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L26)
+- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L58)
+
+- template `marginal_coeff`: [_marginal_coeff](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L25)
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L30)
+- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L62)
+
+- template `marginal_label`: [_marginal_label](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L35)
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L34)
+- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L66)
+
+- template `marginal_label`: [_unconditional_mean](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L218)
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L37)
+- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L84)
 
 To have general idea about the structure, refer to [src/models/Cross](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/Cross)
