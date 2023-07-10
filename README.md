@@ -37,6 +37,7 @@ Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/git
 
 
 ## Users <a name="users"></a>
+To see more usages, please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
 ### fit the model <a name = "fit_the_models"></a>
 #### `sfspec`: wrapper for assigning the data and some model specific parameters <a name="sfspec"></a>
 - examples in examples/Cross_Trun.ipynb
@@ -181,7 +182,6 @@ Some API to extract information from the `res::SFresult`
 
 - `sfAIC`, `sfBIC`: aic and bic for model `SNCre`
 
-To see more usages, please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
 
 
 ### marginal effect <a name="marginal_effect"></a>
