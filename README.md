@@ -2,25 +2,43 @@
 *the purpose of this repository is creating a bear bone structure for further development*
 
 
-## install
+## Installation
 Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/githubjacky/StochasticFrontiers.jl
 
 
-## models
+## Models
 - `Cross`: basic stochastic frontier models
     - with half normal, truncated normal, exponential distribution assumption
 - `PFEWH`: [Estimating fixed-effect panel stochastic frontier models by model transformation](https://www.sciencedirect.com/science/article/abs/pii/S0304407610000047)
 - `SNCre`: [Flexible panel stochastic frontier model with serially correlated errors](https://www.sciencedirect.com/science/article/abs/pii/S0165176517304871)
 
 
-## Content
-1. [users](#users)
-2. [development](#developers)
+## Table of Content
+- [users](#users)
+    - [fit the model](#fit_the_models)
+        - [`sfspec`](#sfspec)
+        - [`sfopt`](#sfopt)
+        - [`sfinit`](#sfinit)
+        - [`sfmodel_fit`](#sfmodel_fit)
+    - [jlms and bc index](#jlms_bc)
+    - [estimation results](#estimation_results)
+    - [marginal effect](#marginal_effect)
+- [developers](#developers)
+    - [main.jl](#main)
+        - [basic setup](#basic_setup)
+        - [`spec`](#spec)
+        - [`modelinfo`](#modelinfo)
+    - [LLT.jl](#LLT)
+        - [`composite_error`](#composite_error)
+        - [`LLT`](#log_likelihood)
+    - [extension.jl](#extension)
+        - [`jlmsbc`](#jlmsbc)
+        - [utility function for bootstrap marginal effect](#bootstrap)
 
 
-## users <a name="users"></a>
-### fit the model 
-#### `sfspec`: wrapper for assigning the data and some model specific parameters.
+## Users <a name="users"></a>
+### fit the model <a name = "fit_the_models"></a>
+#### `sfspec`: wrapper for assigning the data and some model specific parameters <a name="sfspec"></a>
 - examples in examples/Cross_Trun.ipynb
 ```julia
 spec = sfspec(
@@ -62,17 +80,17 @@ spec = sfspec(
     depvar     = :log_y, 
     frontiers  = (:log_x1, :log_x2, :t), 
     serialcorr = AR(1), 
-    R          = 250, 
-    σₑ²        = :_cons,
+    R          = 250,     # for MSLE of correlated random effect
+    σₑ²        = :_cons,  # noise for correlated random effect 
     verbose    = false
 )
 ```
 
-To see each model's specification, check of the `spec` in each model's main.jl located in
+To see each model's specification, check out the `spec` in each model's main.jl located in
 src/models/{model}/main.jl.
 
 
-#### `sfopt`: MLE optimization parameters
+#### `sfopt`: MLE optimization parameters <a name="sfopt"></a>
 default options:
 ```julia
 options = sfopt(
@@ -88,7 +106,7 @@ options = sfopt(
 ```
 
 
-#### `sfinit`: initial points
+#### `sfinit`: initial points <a name=sfinit></a>
 The initial points can be assigned in two ways, assigning all or block by block.
 - example in examples/SNCre.ipynb
 ```julia
@@ -115,7 +133,7 @@ init = sfinit(
 ```
 
 
-#### `sfmodel_fit`: wrap the spec, options and init to avoid global variables
+#### `sfmodel_fit`: wrap the spec, options and init to avoid global variables <a name="sfmodel_fit"></a>
 - examples in examples/Cross_Trun.ipynb
 ```julia
 res = sfmodel_fit(
@@ -138,12 +156,12 @@ res = sfmodel_fit(
 ```
 
 
-### jlms and bc index
+### jlms and bc index <a name="jlms_bc"></a>
 Mean of the indices will be calculated automatically aftre fitting, and just remember to 
 set the `verbose` to true to see full estimation results. To get the indeices, use the 
 function `sf_inefficiency` and `sf_efficiency`.
 
-### estimation results
+### estimation results <a name="estimation_results"></a>
 The type to store the fitted result: [`SFresult`](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L186).
 Notice that there are two fields for `SFresult`. One is for the baisc storage and the other 
 is model specific.
@@ -166,7 +184,7 @@ Some API to extract information from the `res::SFresult`
 To see more usages, please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
 
 
-### marginal effect
+### marginal effect <a name="marginal_effect"></a>
 Examples can be found in exampeles/Cross_Trun.ipynb.
 1. `sfmarginal`: marginal effect
 ```julia
@@ -212,8 +230,8 @@ there are some templates for these functions.
 
 Let me introduce the whole structure taking models `Cross` and `SNCre` as the example.
 
-### main.jl
-#### create the type for models
+### main.jl <a name=main></a>
+#### basic setup <a name="basic_setup"></a>
 1. define the model and dist, ψ and paramnames are three necessary fields
 ```julia
 # Cross
@@ -302,33 +320,35 @@ sfAIC(a::SFresult) = round(a.model_res.aic, digits = 5)
 sfBIC(a::SFresult) = round(a.model_res.bic, digits = 5)
 ```
 
-#### `spec`
+#### `spec` <a name=sfpec></a>
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L79)
 - [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L166)
 
-#### `modelinfo`
+#### `modelinfo` <a name="modelinfo"></a>
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L113)
 - [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L256)
 
-### LLT.jl
-#### composite error term
+
+### LLT.jl <a name=LLT></a>
+#### `composite_error` <a name=composite_error></a>
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L6)
 - [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L151)
 
-#### log-likelihood
+#### `LLT` <a name=log_likelihood></a>
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L26)
 - [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L198)
 
-### extension.jl
-In this section, I will use `Cross` and `PFEWH` as the above 2 models both take advantage 
-of the template functions.
 
-#### jlms and bc index
+### extension.jl <a name=extension></a>
+In this section, I will use `Cross` and `PFEWH` models to illustrate as both `Cross` and
+`SNCre` take advantage of the template functions.
+
+#### `jlmsbc` <a name=jlmsbc></a>
 - template `jlmsbc`: [_jlmsbc](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L159)
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L7)
 - [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L31)
 
-#### utility function for marginal effect
+#### utility function for bootstrap marginal effect <a name="bootstrap"></a>
 - template `marginal_data`: [_marg_data](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L1)
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L26)
 - [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L58)
