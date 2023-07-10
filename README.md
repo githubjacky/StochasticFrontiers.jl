@@ -131,12 +131,12 @@ res = sfmodel_fit(
 ```
 
 
-#### jlms and bc index
+### jlms and bc index
 Mean of the indices will be calculated automatically aftre fitting, and just remember to 
 set the `verbose` to true to see full estimation results. To get the indeices, use the 
 function `sf_inefficiency` and `sf_efficiency`.
 
-#### estimation results
+### estimation results
 The type to store the fitted result: [`SFresult`](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L186).
 Notice that there are two fields for `SFresult`. One is for the baisc storage and the other 
 is model specific.
@@ -159,7 +159,7 @@ Some API to extract information from the `res::SFresult`
 To see more usages, please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
 
 
-#### marginal effect
+### marginal effect
 Examples can be found in exampeles/Cross_Trun.ipynb.
 1. `sfmarginal`: marginal effect
 ```julia
