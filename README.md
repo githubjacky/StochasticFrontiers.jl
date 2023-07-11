@@ -515,29 +515,123 @@ end
 
 
 ### extension.jl <a name=extension></a>
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/extension.jl)
+
 In this section, I will use `Cross` and `PFEWH` models to illustrate as both `Cross` and
 `SNCre` take advantage of the template functions.
 
 #### `jlmsbc` <a name=jlmsbc></a>
 - template `jlmsbc`: [_jlmsbc](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L159)
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L7)
-- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L31)
+```julia
+# Cross
+function jlmsbc(ξ, model::Cross, data::Data)
+    coeff              = slice(ξ, model.ψ, mle=true)
+    ϵ, σᵥ², dist_param = composite_error(coeff, model, data)
+
+    jlms, bc = _jlmsbc(typeofdist(model), σᵥ², dist_param..., ϵ)::NTuple{2, Vector{Float64}}
+    return jlms, bc
+end
+
+# PFEWH
+function PFEWH_jlmsbc(rowidx, σᵥ², μ, σᵤ², ϵ, h)
+
+    ϵ̃  = demean_panelize(ϵ, rowidx)
+    h_ = static_panelize(h, rowidx)
+    h̃  = demean_panelize(h, rowidx)
+
+    N    = sum(length.(ϵ̃))
+    jlms = zeros(N)
+    bc   = zeros(N)
+
+    @floop for (ϵ̃ᵢ, h̃ᵢ, hᵢ, idx) in zip(ϵ̃, h̃, h_, rowidx)
+        σₛₛ² = 1.0 / ( h̃ᵢ' * h̃ᵢ * (1/σᵥ²) + 1/σᵤ² )
+        σₛₛ  = sqrt(σₛₛ²)
+        μₛₛ  = ( μ/σᵤ² - ϵ̃ᵢ' * h̃ᵢ * (1/σᵥ²) ) * σₛₛ²
+
+        jlms[idx] = @. hᵢ * ( μₛₛ + normpdf(μₛₛ/σₛₛ) * σₛₛ / normcdf(μₛₛ/σₛₛ) )
+        bc[idx]   = @. ( (normcdf(μₛₛ/σₛₛ-hᵢ*σₛₛ)) / normcdf(μₛₛ/σₛₛ) ) * 
+                       exp( -hᵢ * μₛₛ + 0.5 * (hᵢ^2) * σₛₛ² )
+    end
+
+    return jlms, bc
+end
+
+function jlmsbc(ξ, model::PFEWH, data::PanelData)
+    ϵ, σᵥ², dist_param, h = composite_error(
+        slice(ξ, model.ψ, mle=true),
+        model, 
+        data
+    )
+    jlms, bc = begin
+        model.dist isa Trun ?
+        PFEWH_jlmsbc(data.rowidx, σᵥ², dist_param..., ϵ, h) :
+        PFEWH_jlmsbc(data.rowidx, σᵥ², 0., dist_param..., ϵ, h)
+    end
+
+   return jlms, bc
+end
+```
+Some models should define calculation of the jlms, bc index such as `PFEWH`. In this case,
+the `jlmsbc` can't rely on the template function.
+
 
 #### utility function for bootstrap marginal effect <a name="bootstrap"></a>
 - template `marginal_data`: [_marg_data](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L1)
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L26)
-- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L58)
+```julia
+# Cross
+marginal_data(model::Cross) = _marg_data(model)
+
+# PFEWH
+marginal_data(model::PFEWH) = _marg_data(model, :hscale)
+```
 
 - template `marginal_coeff`: [_marginal_coeff](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L25)
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L30)
-- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L62)
+```julia
+# Cross
+marginal_coeff(::Type{<:Cross}, ξ, ψ) = _marginal_coeff(ξ, ψ)
+
+# PFEWH
+marginal_coeff(::Type{<:PFEWH}, ξ, ψ) = slice(ξ, ψ, mle=true)[[2, 4]]
+```
 
 - template `marginal_label`: [_marginal_label](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/structure/extension.jl#L35)
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L34)
-- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L66)
+```julia
+# Cross
+marginal_label(model::Cross, k) = _marginal_label(model, k)
 
-- template `marginal_label`: [_unconditional_mean](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L218)
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/extension.jl#L37)
-- [PFEWH](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/PFEWH/extension.jl#L84)
+# PFEWH
+marginal_label(model::PFEWH, k) = _marginal_label(model, k, :log_hscale)
+```
+
+- template `unconditional_mean`: [_unconditional_mean](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/basic_equations.jl#L218)
+```julia
+# Cross
+unconditional_mean(::Type{Cross{T}}, coeff, args...) where T = _unconditional_mean(T, coeff, args...)
+
+# PFEWH
+function PFEWH_unconditional_mean(coeff, μ, log_σᵤ², _log_h)
+
+    Wμ = μ == zeros(1) ? zeros(1) : coeff[1][begin:begin+length(μ)-1]
+    Wᵤ = coeff[1][end-length(log_σᵤ²)+1:end]
+
+    log_h = _log_h' * coeff[2]
+
+    μ       = exp(log_h) * (μ' * Wμ)
+    σᵤ      = exp(log_h + 0.5 * log_σᵤ²' * Wᵤ)
+    Λ       = μ / σᵤ
+    uncondU = σᵤ * ( Λ + normpdf(Λ) / normcdf(Λ) )
+
+    return uncondU
+end
+
+function unconditional_mean(::Type{PFEWH{Half{T}}}, coeff, log_σᵤ², log_h) where T
+    return PFEWH_unconditional_mean(coeff, [0.], log_σᵤ², log_h)
+end
+
+function unconditional_mean(::Type{PFEWH{Trun{T, S}}}, coeff, μ, log_σᵤ², log_h) where{T, S}
+    return PFEWH_unconditional_mean(coeff, μ, log_σᵤ², log_h)
+end
+```
 
 To have general idea about the structure, refer to [src/models/Cross](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/src/models/Cross)
