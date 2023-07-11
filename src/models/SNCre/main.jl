@@ -104,7 +104,7 @@ To estimate the correlated random effect
 
 # Examples
 ```juliadoctest
-julia> ivar = [1, 1, 1, 2, 2]; X=[3 5; 4 7; 5 9; 8 2; 3 1]
+julia> X=[3 5; 4 7; 5 9; 8 2; 3 1]
 5×2 Matrix{Int64}:
  3  5
  4  7
@@ -112,20 +112,10 @@ julia> ivar = [1, 1, 1, 2, 2]; X=[3 5; 4 7; 5 9; 8 2; 3 1]
  8  2
  3  1
 
-julia> tnum = [length(findall(x->x==i, ivar)) for i in unique(ivar)]
-2-element Vector{Int64}:
- 3
- 2
+julia> rowidx = [1:3, 4:5]
 
-julia> X = Panel(X, tnum=tnum)
-5×2 Main.SFrontiers.Panel{Matrix{Int64}}:
- 3  5
- 4  7
- 5  9
- 8  2
- 3  1
 
-julia> cleanX, pivots = meanOfX(X); cleanX
+julia> cleanX, pivots = meanofx(rowidx, X); cleanX
 * Find Multicollinearity
 
 number 3 column in xmean is dropped
@@ -164,7 +154,9 @@ end
 
 """
 function spec(model::UndefSNCre, df; 
-                type::T, dist, σᵥ², ivar, depvar, frontiers, serialcorr, R, σₑ², verbose=true
+              type::T, dist, σᵥ², ivar, depvar, frontiers, 
+              serialcorr, R, σₑ², 
+              verbose = true
              ) where{T<:AbstractEconomicType}
     # 1. get some base vaiables
     paneldata, fitted_dist, _col1, _col2 = getvar(

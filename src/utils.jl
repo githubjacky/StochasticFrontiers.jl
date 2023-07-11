@@ -23,7 +23,9 @@ julia> convert(Vector, b)
 1-element Vector{Symbol}:
  :a
 
-juila> e = [1,2,3]; convert(Matrix, e)
+juila> e = [1,2,3];
+
+julia> convert{Matrix{Float64}, e}
 3×1 Matrix{Int64}:
  1
  2
@@ -33,7 +35,7 @@ juila> e = [1,2,3]; convert(Matrix, e)
 """
 convert(::Type{Vector}, a::Tuple{Vararg{T}}) where T   = collect(a)::Vector{T}
 convert(::Type{Vector}, a::T) where T                  = T[a]
-convert(::Type{Matrix{T}}, a::AbstractVector) where T  = reshape(a, length(a), 1)::Matrix{T}
+convert(::Type{Matrix{T}}, a::AbstractVector) where T  = Matrix{T}(reshape(a, length(a), 1))
 
 
 """

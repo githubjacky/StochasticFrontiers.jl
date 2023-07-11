@@ -77,8 +77,9 @@ end
 
 """
 function spec(model::UndefCross, df; 
-              type, dist, σᵥ², depvar, frontiers, verbose = true
-             )
+              type::T, dist, σᵥ², depvar, frontiers, 
+              verbose = true
+             ) where{T<:AbstractEconomicType}
     # 1. get some base vaiables
     crossdata, dist, _col1, _col2 = getvar(
         df, type, dist, σᵥ², depvar, frontiers, verbose
@@ -101,7 +102,7 @@ function spec(model::UndefCross, df;
     )
     push!(ψ, sum(ψ))
     
-    return model(dist, ψ, paramnames), crossdata
+    return model(dist, ψ, paramnames), crossdata::Data{T}
 end
 
 #########################################################################################

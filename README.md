@@ -38,7 +38,11 @@ Add StochasticFrontiers from the Pkg REPL, i.e., pkg> add https://github.com/git
 
 ## Users <a name="users"></a>
 To see more usages, please check out the [examples/](https://github.com/githubjacky/StochasticFrontiers.jl/tree/main/examples) folser
+
+
 ### fit the model <a name = "fit_the_models"></a>
+
+
 #### `sfspec`: wrapper for assigning the data and some model specific parameters <a name="sfspec"></a>
 - examples in examples/Cross_Trun.ipynb
 ```julia
@@ -88,7 +92,7 @@ spec = sfspec(
 ```
 
 To see each model's specification, check out the `spec` in each model's main.jl located in
-src/models/{model}/main.jl.
+src/models/{ **model** }/main.jl and **model** is the argument you should specify.
 
 
 #### `sfopt`: MLE optimization parameters <a name="sfopt"></a>
@@ -200,7 +204,8 @@ std_ci, bsdata = sfmarginal_bootstrap(
 );
 ``````
 User can also set the MLE estimation options in `sfmarginal_bootstrap` as keyword arguments.
-Below is the example to reset `warmstart_solver` and `tolerance`
+Below is the example to reset `warmstart_solver` and `tolerance`. For full options, check
+out [default options](#sfopt)
 ```julia
 std_ci, bsdata = sfmarginal_bootstrap(
     res, 
@@ -230,9 +235,16 @@ there are some templates for these functions.
 
 Let me introduce the whole structure taking models `Cross` and `SNCre` as the example.
 
+
 ### main.jl <a name=main></a>
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl)
+
 #### basic setup <a name="basic_setup"></a>
-1. define the model and dist, ψ and paramnames are three necessary fields
+1. define the model 
+
+`dist`, `ψ` and `paramnames` are three necessary fields. Each new model type is the subtype
+of `AbstractSFmodel` or `AbstractPanelModel` and `AbstractPanelModel` <: `AbstractSFmodel`. 
 ```julia
 # Cross
 struct Cross{T<:AbstractDist} <: AbstractSFmodel
@@ -267,6 +279,9 @@ SNCre() = UndefSNCre()
 ```
 
 3. bootstrap re-construction rules
+
+The definition for the `resample` function for reconstruct the `AbstractDist` during bootstrap
+procedure liess here: [definition](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L95)
 ```julia
 # Cross
 function (a::Cross)(selected_row, ::Data)
@@ -295,6 +310,8 @@ end
 ```
 
 4. model specific result
+
+Developers should define the rule for multiple dispact on function `SFresult`
 ```julia
 # Cross
 struct Crossresult <: AbstractSFresult end
@@ -319,24 +336,182 @@ end
 sfAIC(a::SFresult) = round(a.model_res.aic, digits = 5)
 sfBIC(a::SFresult) = round(a.model_res.bic, digits = 5)
 ```
+`numberofparam` and `numberofobs` is the self-defined utility functions. All the utility
+functions are defined in src/utils.jl
 
 #### `spec` <a name=sfpec></a>
 - [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L79)
 - [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L166)
 
-#### `modelinfo` <a name="modelinfo"></a>
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/main.jl#L113)
-- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/main.jl#L256)
+The interface will be:
+```julia
+function spec(model::AbstractUndefSFmodel, df; 
+              type, dist, σᵥ², depvar, frontiers, 
+              kwargs...
+              verbose = true
+             )
+...
+end
+```
+The `AbstractUndefSFmodel` should various across different model. For instance, the `Cross`
+model is `UndefCross` while `SNCre` is `UndefSNCre`. Besides, `kwargs...` should be re-defined
+as well.
 
+
+#### `modelinfo` <a name="modelinfo"></a>
+
+```julia
+# Cross
+function modelinfo(::Cross)
+    modelinfo1 = "Base stochastic frontier model"
+    
+    modelinfo2 =
+"""
+    Yᵢ = Xᵢ*β + + ϵᵢ
+        where ϵᵢ = vᵢ - uᵢ
+
+        further,     
+            vᵢ ∼ N(0, σᵥ²),
+            σᵥ²  = exp(log_σᵥ²)
+
+            uᵢ ∼ N⁺(0, σᵤ²),
+            σᵤ² = exp(log_σᵤ²)
+
+    In the case of type(cost), "- uᵢₜ" above should be changed to "+ uᵢₜ"
+"""
+    _modelinfo(modelinfo1, modelinfo2)
+end
+
+
+# SNCre
+function modelinfo(model::SNCre)
+    modelinfo1 = "flexible panel stochastic frontier model with serially correlated errors"
+    
+    SCE = model.serialcorr
+    modelinfo2 =
+"""
+    Yᵢₜ = αᵢ + Xᵢₜ*β + T*π + ϵᵢₜ
+        where αᵢ = δ₀ + X̄ᵢ'* δ₁ + eᵢ,
+
+        and since the serial correlated assumptions is $(SCE(:type)),
+            ϵᵢₜ = $(SCE("info"))
+            ηᵢₜ = vᵢₜ - uᵢₜ
+
+        further,     
+            vᵢₜ ∼ N(0, σᵥ²),
+            σᵥ²  = exp(log_σᵥ²)
+
+            uᵢₜ ∼ N⁺(0, σᵤ²),
+            σᵤ² = exp(log_σᵤ²)
+
+            eᵢ ∼ N(0, σₑ²)
+            σᵤ² = exp(log_σₑ²)
+
+    In the case of type(cost), "- uᵢₜ" above should be changed to "+ uᵢₜ"
+"""
+    _modelinfo(modelinfo1, modelinfo2)
+end
+```
 
 ### LLT.jl <a name=LLT></a>
+- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl)
+- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl)
+
 #### `composite_error` <a name=composite_error></a>
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L6)
-- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L151)
+```julia
+# Cross
+function composite_error(coeff::Vector{Vector{T}}, model::Cross, data) where T
+    σᵥ²        = exp.(data.σᵥ² * coeff[3])
+    dist_param = model.dist(coeff[2])
+    ϵ          = (data.econtype * (data.depvar- data.frontiers*coeff[1]))[:, 1]
+    
+    return ϵ, σᵥ², dist_param
+end
+
+# SNCre
+function composite_error(coeff::Vector{Vector{T}}, model::SNCre, data::PanelData) where T
+    σᵥ² = exp.(data.σᵥ² * coeff[3])
+
+    dist_param = model.dist(coeff[2])
+
+    Random.seed!(1234)
+    # since it must be constant(Wₑ is a vector, σₑ² is a scalar)
+    R   = model.R
+    σₑ² = exp((model.σₑ² * coeff[5])[1])  
+    e   = Matrix{T}(undef, data.nofobs, R)
+
+    for i in data.rowidx
+        e[i, 1:R] .= rand(Normal(0, sqrt(σₑ²)), 1, R)
+    end
+
+    simulate_ϵ = broadcast( 
+        -,
+        data.depvar - data.frontiers * coeff[1] -  model.xmean * coeff[4], 
+        e
+    )
+
+    simulate_η = eta(
+        data.rowidx, 
+        data.econtype, 
+        model.serialcorr, 
+        simulate_ϵ, 
+        coeff[6], 
+        typeof(model), 
+        coeff[2], 
+        dist_param
+    )
+
+    return simulate_η, σᵥ², dist_param
+end
+```
 
 #### `LLT` <a name=log_likelihood></a>
-- [Cross](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/Cross/LLT.jl#L26)
-- [SNCre](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/models/SNCre/LLT.jl#L198)
+```julia
+# Cross
+function LLT(ξ, model::Cross, data::Data)
+    coeff              = slice(ξ, model.ψ, mle=true)
+    ϵ, σᵥ², dist_param = composite_error(coeff, model, data)
+
+    return _loglikelihood(typeofdist(model), σᵥ², dist_param..., ϵ)
+end
+
+# SNCre
+function LLT(ξ, model::SNCre, data::PanelData)
+    coeff                       = slice(ξ, model.ψ, mle = true)
+    simulate_η, σᵥ², dist_param = composite_error(coeff, model, data)
+
+    rowidx  = data.rowidx
+    lag     = lagparam(model)
+
+    σᵥ²_ = drop_panelize(σᵥ², rowidx, lag)
+
+    dist_type  = typeofdist(model)
+    dist_param_ = map(
+        x -> drop_panelize(x, rowidx, lag),
+        dist_param 
+    )
+
+    # shift because we first lagdrop in `eta`
+    simulate_η_ = static_panelize(simulate_η, newrange(rowidx, lag))
+
+
+    @inbounds @floop for (i, val) in enumerate(zip(dist_param_...))
+
+        simulate_llhᵢ = map(
+            x -> _likelihood(dist_type, σᵥ²_[i], val..., x),
+            eachcol(simulate_η_[i])
+        )
+
+        llhᵢ = log(mean(simulate_llhᵢ))
+        llhᵢ = !isinf(llhᵢ) ? llhᵢ : -1e10
+
+        @reduce llh = 0 + llhᵢ
+    end
+
+    return llh
+end
+
+```
 
 
 ### extension.jl <a name=extension></a>

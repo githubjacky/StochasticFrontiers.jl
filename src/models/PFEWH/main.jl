@@ -75,8 +75,10 @@ end
 
 """
 function spec(model::UndefPFEWH, df; 
-                type::T, dist, σᵥ², ivar, depvar, frontiers, hscale, verbose = true 
-        ) where{T<:AbstractEconomicType}
+              type::T, dist, σᵥ², ivar, depvar, frontiers, 
+              hscale, 
+              verbose = true 
+             ) where{T<:AbstractEconomicType}
     # 1. get some base vaiables
     paneldata, dist, _col1, _col2 = getvar(df, ivar, eval(type), dist, σᵥ², depvar, frontiers, verbose)
 
