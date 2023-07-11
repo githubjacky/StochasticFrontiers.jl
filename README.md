@@ -167,7 +167,7 @@ set the `verbose` to true to see full estimation results. To get the indeices, u
 function `sf_inefficiency` and `sf_efficiency`.
 
 ### estimation results <a name="estimation_results"></a>
-The type to store the fitted result: [`SFresult`](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L186).
+The type to store the estimation results: [`SFresult`](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L186).
 Notice that there are two fields for `SFresult`. One is for the baisc storage and the other 
 is model specific.
 
@@ -204,8 +204,8 @@ std_ci, bsdata = sfmarginal_bootstrap(
 );
 ``````
 User can also set the MLE estimation options in `sfmarginal_bootstrap` as keyword arguments.
-Below is the example to reset `warmstart_solver` and `tolerance`. For full options, check
-out [default options](#sfopt)
+Below is the example to reset `warmstart_solver` and `tolerance`. For all options, refer to
+[default options](#sfopt)
 ```julia
 std_ci, bsdata = sfmarginal_bootstrap(
     res, 
@@ -231,9 +231,10 @@ Basically, there are three files should be created: main.jl, LLT.jl and extensio
 function is necessary to implement such as the `spec` and `modelinfo` in main.jl, 
 `composite_error` and `LLT` in LLT.jl and `jlmsbc`, `marginal_data`, `marginal_coeff`,
 `marginal_label` and `unconditional_mean` in extension.jl. For quick development,
-there are some templates for these functions.
+there are some templates for these functions. Don't forget to `include` the main.jl of your
+model in src/StochasticFrontiers.jl.
 
-Let me introduce the whole structure taking models `Cross` and `SNCre` as the example.
+Let me introduce the whole structure taking model `Cross` and `SNCre` as the examples.
 
 
 ### main.jl <a name=main></a>
@@ -265,7 +266,7 @@ struct SNCre{T, S} <: AbstractPanelModel
 end
 ```
 
-2. define the "undefined" model to ensure type stability
+2. define the "undefined" type to ensure type stability
 ```julia
 # Cross
 struct UndefCross <: AbstractUndefSFmodel end
@@ -280,7 +281,7 @@ SNCre() = UndefSNCre()
 
 3. bootstrap re-construction rules
 
-The definition for the `resample` function for reconstruct the `AbstractDist` during bootstrap
+The definition of the `resample` function for reconstruct the `AbstractDist` during bootstrap
 procedure liess here: [definition](https://github.com/githubjacky/StochasticFrontiers.jl/blob/main/src/types.jl#L95)
 ```julia
 # Cross
@@ -311,7 +312,7 @@ end
 
 4. model specific result
 
-Developers should define the rule for multiple dispact on function `SFresult`
+Developers should define the rule for multiple dispatch on function `SFresult`
 ```julia
 # Cross
 struct Crossresult <: AbstractSFresult end
@@ -354,8 +355,14 @@ function spec(model::AbstractUndefSFmodel, df;
 end
 ```
 The `AbstractUndefSFmodel` should various across different model. For instance, the `Cross`
-model is `UndefCross` while `SNCre` is `UndefSNCre`. Besides, `kwargs...` should be re-defined
+model is `UndefCross` while `SNCre` is `UndefSNCre`. Besides, `kwargs...` should be define
 as well.
+
+The purpose of `spec`:
+1. extract the data from .csv file and ensure there is no multicollinearity
+2. create names for variables in output estimation table
+3. define the rule for slicing parameters
+    - in optimization process, all parameters is clustered into a vector
 
 
 #### `modelinfo` <a name="modelinfo"></a>
@@ -512,6 +519,9 @@ function LLT(ξ, model::SNCre, data::PanelData)
 end
 
 ```
+`slice`, `drop_panelize`, `static_panelize`, `newrange` are utility functions can be found
+in src/utils.jl. `_likelihood` is the template function can be found in src/basic_equations
+
 
 
 ### extension.jl <a name=extension></a>
