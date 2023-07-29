@@ -24,7 +24,7 @@ abstract type AbstractEconomicType end
 struct Prod <: AbstractEconomicType end
 struct Cost <: AbstractEconomicType end
 const prod = Prod
-const p    = Prod
+const p = Prod
 const cost = Cost
 
 Base.:*(::Prod, a) = a
@@ -38,7 +38,7 @@ struct Half{T} <: AbstractDist
     σᵤ²::T
 end
 
-struct Trun{T, S} <: AbstractDist
+struct Trun{T,S} <: AbstractDist
     μ::T
     σᵤ²::S
 end
@@ -53,37 +53,37 @@ const expo = Expo
 
 
 # initial construction, further completeness in `getvar`
-Half(;σᵤ²)    = Half(σᵤ²)
-Trun(;μ, σᵤ²) = Trun(μ, σᵤ²)
-Expo(;λ)      = Expo(λ)
+Half(; σᵤ²) = Half(σᵤ²)
+Trun(; μ, σᵤ²) = Trun(μ, σᵤ²)
+Expo(; λ) = Expo(λ)
 
 
 # for read in the data fiven the column symbol
 
-function (a::Half)(df::Union{DataFrame, Nothing}) 
+function (a::Half)(df::Union{DataFrame,Nothing})
     Half(
-        isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df = df))[1]
+        isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df=df))[1]
     )
 end
-function (a::Trun)(df::Union{DataFrame, Nothing}) 
+function (a::Trun)(df::Union{DataFrame,Nothing})
     Trun(
-        isMultiCollinearity(:μ, readframe(a.μ, df = df))[1],
-        isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df = df))[1]
+        isMultiCollinearity(:μ, readframe(a.μ, df=df))[1],
+        isMultiCollinearity(:σᵤ², readframe(a.σᵤ², df=df))[1]
     )
 end
-function (a::Expo)(df::Union{DataFrame, Nothing}) 
+function (a::Expo)(df::Union{DataFrame,Nothing})
     Expo(
-        isMultiCollinearity(:λ, readframe(a.λ, df = df))[1]
+        isMultiCollinearity(:λ, readframe(a.λ, df=df))[1]
     )
 end
 
-(a::Half)(x::AbstractVector) = (exp.(a.σᵤ²*x),)
+(a::Half)(x::AbstractVector) = (exp.(a.σᵤ² * x),)
 
 # product of the data and coefficients
 function (a::Trun)(x::AbstractVector)
     n = numberofvar(a.μ)
     Wμ, Wᵤ = view(x, 1:n), view(x, n+1:length(x))
-    return (a.μ * Wμ, exp.(a.σᵤ²*Wᵤ))
+    return (a.μ * Wμ, exp.(a.σᵤ² * Wᵤ))
 end
 
 (a::Expo)(x::AbstractVector) = (exp.(a.λ * x),)
@@ -92,7 +92,7 @@ end
 
 
 # for bootstrap
-resample(A::T, ind) where{T<:AbstractDist} = T([field[ind, :] for field in unpack(A)]...)
+resample(A::T, ind) where {T<:AbstractDist} = T([field[ind, :] for field in unpack(A)]...)
 
 
 # general data to fit model
@@ -170,7 +170,7 @@ end
 abstract type AbstractSFresult end
 
 # the main result, one of tthe fields of <: AbstractSFresult
-struct MainSFresult{T, S, U, V}
+struct MainSFresult{T,S,U,V}
     ξ::Vector{Float64}
     model::T
     data::S
@@ -183,7 +183,7 @@ struct MainSFresult{T, S, U, V}
 end
 
 
-struct SFresult{T<:MainSFresult, S<:AbstractSFresult}
+struct SFresult{T<:MainSFresult,S<:AbstractSFresult}
     main_res::T
     model_res::S
 end

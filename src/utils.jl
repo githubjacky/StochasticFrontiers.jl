@@ -25,7 +25,7 @@ julia> convert(Vector, b)
 
 juila> e = [1,2,3];
 
-julia> convert{Matrix{Float64}, e}
+julia> convert(Matrix{Float64}, e)
 3×1 Matrix{Int64}:
  1
  2
@@ -33,9 +33,9 @@ julia> convert{Matrix{Float64}, e}
 ```
 
 """
-convert(::Type{Vector}, a::Tuple{Vararg{T}}) where T   = collect(a)::Vector{T}
-convert(::Type{Vector}, a::T) where T                  = T[a]
-convert(::Type{Matrix{T}}, a::AbstractVector) where T  = Matrix{T}(reshape(a, length(a), 1))
+convert(::Type{Vector}, a::Tuple{Vararg{T}}) where {T} = collect(a)::Vector{T}
+convert(::Type{Vector}, a::T) where {T} = T[a]
+convert(::Type{Matrix{T}}, a::AbstractVector) where {T} = Matrix{T}(reshape(a, length(a), 1))
 
 
 """
@@ -99,9 +99,9 @@ julia> readframe(md[:, 2:3])
 ```
 
 """
-readframe(idx::Symbol; df)                           = convert(Matrix{Float64}, Vector{Float64}(Base.getproperty(df, idx)))::Matrix{Float64}
-readframe(ind::Tuple{Vararg{Symbol}}; df)            = reduce(hcat, Vector{Float64}[Base.getproperty(df, i) for i in ind])::Matrix{Float64}
-readframe(a::AbstractArray{T}; kwargs...) where T    = convert(Matrix{T}, a)::Matrix{T}
+readframe(idx::Symbol; df) = convert(Matrix{Float64}, Vector{Float64}(Base.getproperty(df, idx)))::Matrix{Float64}
+readframe(ind::Tuple{Vararg{Symbol}}; df) = reduce(hcat, Vector{Float64}[Base.getproperty(df, i) for i in ind])::Matrix{Float64}
+readframe(a::AbstractArray{T}; kwargs...) where {T} = convert(Matrix{T}, a)::Matrix{T}
 
 
 """
@@ -129,16 +129,16 @@ julia> paramname_col1(fieldnames(Trun))
 
 """
 function paramname_col1(dist_fieldname)
-    en   = length(dist_fieldname) + 2
-    col1 = Vector{Symbol}(undef, en)
+  en = length(dist_fieldname) + 2
+  col1 = Vector{Symbol}(undef, en)
 
-    col1[begin:en] = begin
-        dist_fieldname[end] == :σᵤ² ?
-            [:frontiers, dist_fieldname[begin:end-1]..., :log_σᵤ², :log_σᵥ²] :
-            [:frontiers, dist_fieldname[begin:end-1]..., :log_λ², :log_σᵥ²]
-    end
+  col1[begin:en] = begin
+    dist_fieldname[end] == :σᵤ² ?
+    [:frontiers, dist_fieldname[begin:end-1]..., :log_σᵤ², :log_σᵥ²] :
+    [:frontiers, dist_fieldname[begin:end-1]..., :log_λ², :log_σᵥ²]
+  end
 
-    return col1
+  return col1
 end
 
 
@@ -170,8 +170,8 @@ julia> a = :x; create_names(a)
 
 """
 create_names(label::Symbol, a::AbstractMatrix) = Symbol[Symbol(label, i) for i = axes(a, 2)]
-create_names(a::Tuple)                         = convert(Vector, a)::Vector{Symbol}
-create_names(a::Symbol)                        = convert(Vector, a)::Vector{Symbol}
+create_names(a::Tuple) = convert(Vector, a)::Vector{Symbol}
+create_names(a::Symbol) = convert(Vector, a)::Vector{Symbol}
 
 
 """
@@ -225,39 +225,39 @@ julia> paramname_col2(frontiers, dist_props, σᵥ²)
 
 """
 function paramname_col2(frontiers::Tuple, dist_props, σᵥ²)
-    en   = length(dist_props) + 2
-    col2 = Vector{Vector{Symbol}}(undef, en)
+  en = length(dist_props) + 2
+  col2 = Vector{Vector{Symbol}}(undef, en)
 
-    col2[1:en] = [
-        create_names(frontiers), create_names.(dist_props)..., create_names(σᵥ²)
-    ]
+  col2[1:en] = [
+    create_names(frontiers), create_names.(dist_props)..., create_names(σᵥ²)
+  ]
 
-    return col2
+  return col2
 end
 
 
 function paramname_col2(frontiers::AbstractMatrix, dist_props, σᵥ²)
-    en = length(dist_props) + 2
-    col2 = Vector{Vector{Symbol}}(undef, en)
-    col2[begin] = create_names(:frontiers, frontiers)
+  en = length(dist_props) + 2
+  col2 = Vector{Vector{Symbol}}(undef, en)
+  col2[begin] = create_names(:frontiers, frontiers)
 
-    for i = eachindex(dist_props)
-        if numberofvar(dist_props[i]) == 1
-            col2[begin+i] = [:_cons]
-        else
-            col2[begin+i] = create_names(:exogenous, dist_props[i])
-            col2[begin+i][end] = :_cons
-        end
-    end
-
-    if numberofvar(σᵥ²) == 1
-        col2[en] = [:_cons]
+  for i = eachindex(dist_props)
+    if numberofvar(dist_props[i]) == 1
+      col2[begin+i] = [:_cons]
     else
-        col2[en] = create_names(:exogenous, σᵥ²)
-        col2[en][end] = :_cons
+      col2[begin+i] = create_names(:exogenous, dist_props[i])
+      col2[begin+i][end] = :_cons
     end
+  end
 
-    return col2
+  if numberofvar(σᵥ²) == 1
+    col2[en] = [:_cons]
+  else
+    col2[en] = create_names(:exogenous, σᵥ²)
+    col2[en][end] = :_cons
+  end
+
+  return col2
 end
 
 
@@ -289,14 +289,14 @@ julia> complete_template(base, :hscale, :ρ)
 
 """
 function complete_template(base, add...)
-    len1   = length(base)
-    len2   = length(add)
-    concat = similar(base, len1 + len2)
+  len1 = length(base)
+  len2 = length(add)
+  concat = similar(base, len1 + len2)
 
-    concat[1:len1]           .= base
-    concat[len1+1:len1+len2] .= add
+  concat[1:len1] .= base
+  concat[len1+1:len1+len2] .= add
 
-    return concat
+  return concat
 end
 
 
@@ -339,23 +339,23 @@ See also: [`complete_template`](@ref)
 
 """
 function paramname(col1, col2::Vector{Vector{Symbol}})
-    names = Matrix{Symbol}(undef, sum(length.(col2)), 2)
-    beg   = 1
+  names = Matrix{Symbol}(undef, sum(length.(col2)), 2)
+  beg = 1
 
-    @inbounds for i = eachindex(col1)
-        col2ᵢ    = col2[i]
-        len      = length(col2ᵢ)
-        en       = beg + len - 1
-        col1ᵢ    = repeat([Symbol()], len)
-        col1ᵢ[1] = col1[i]
+  @inbounds for i = eachindex(col1)
+    col2ᵢ = col2[i]
+    len = length(col2ᵢ)
+    en = beg + len - 1
+    col1ᵢ = repeat([Symbol()], len)
+    col1ᵢ[1] = col1[i]
 
-        names[beg:en, 1] .= col1ᵢ
-        names[beg:en, 2] .= col2ᵢ
+    names[beg:en, 1] .= col1ᵢ
+    names[beg:en, 2] .= col2ᵢ
 
-        beg = en + 1
-    end
+    beg = en + 1
+  end
 
-    return names
+  return names
 end
 
 
@@ -390,44 +390,44 @@ be done applying model specific method `sfspec` which should be further defined.
 
 
 """
-function getvar(df, type::T, _dist, _σᵥ², _depvar, _frontiers, verbose) where{T<:AbstractEconomicType}
-    dist_param             = unpack(_dist)
-    dist                   = _dist(df)
-    σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
+function getvar(df, type::T, _dist, _σᵥ², _depvar, _frontiers, verbose) where {T<:AbstractEconomicType}
+  dist_param = unpack(_dist)
+  dist = _dist(df)
+  σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
 
-    # check multicollinearity
-    frontiers = isMultiCollinearity(:frontiers, frontiers; warn = verbose)[1]
-    σᵥ²       = isMultiCollinearity(:σᵥ², σᵥ²; warn = verbose)[1]
+  # check multicollinearity
+  frontiers = isMultiCollinearity(:frontiers, frontiers; warn=verbose)[1]
+  σᵥ² = isMultiCollinearity(:σᵥ², σᵥ²; warn=verbose)[1]
 
-    # creat parameters' names of the output estimation table
-    col1 = paramname_col1(fieldnames(typeof(dist)))  # generate the parameters' names for making estimation table
-    col2 = df isa DataFrame ?
-        paramname_col2(_frontiers, dist_param, _σᵥ²) : 
-        paramname_col2(frontiers, dist_param, σᵥ²)  # generate the parameters' names for making estimation table
+  # creat parameters' names of the output estimation table
+  col1 = paramname_col1(fieldnames(typeof(dist)))  # generate the parameters' names for making estimation table
+  col2 = df isa DataFrame ?
+         paramname_col2(_frontiers, dist_param, _σᵥ²) :
+         paramname_col2(frontiers, dist_param, σᵥ²)  # generate the parameters' names for making estimation table
 
-    return Data{T}(type, σᵥ², depvar, frontiers, size(depvar, 1)), dist, col1, col2
+  return Data{T}(type, σᵥ², depvar, frontiers, size(depvar, 1)), dist, col1, col2
 end
 
-function getvar(df, _ivar, type::T, _dist, _σᵥ², _depvar, _frontiers, verbose) where{T<:AbstractEconomicType}
-    ivar   = df isa Nothing ? _ivar : Base.getproperty(df, _ivar)
-    tnum   = [length(findall(x->x==i, ivar)) for i in unique(ivar)]
-    rowidx = tnumTorowidx(tnum)
-    
-    dist_param             = unpack(_dist)
-    dist                   = _dist(df)
-    σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
+function getvar(df, _ivar, type::T, _dist, _σᵥ², _depvar, _frontiers, verbose) where {T<:AbstractEconomicType}
+  ivar = df isa Nothing ? _ivar : Base.getproperty(df, _ivar)
+  tnum = [length(findall(x -> x == i, ivar)) for i in unique(ivar)]
+  rowidx = tnumTorowidx(tnum)
 
-    # check multicollinearity
-    frontiers = isMultiCollinearity(:frontiers, frontiers; warn = verbose)[1]
-    σᵥ²       = isMultiCollinearity(:σᵥ², σᵥ²; warn = verbose)[1]
+  dist_param = unpack(_dist)
+  dist = _dist(df)
+  σᵥ², depvar, frontiers = readframe.((_σᵥ², _depvar, _frontiers), df=df)
 
-    # creat parameters' names of the output estimation table
-    col1 = paramname_col1(fieldnames(typeof(dist)))  # generate the parameters' names for making estimation table
-    col2 = isa(df, DataFrame) ? 
-        paramname_col2(_frontiers, dist_param, _σᵥ²) : 
-        paramname_col2(frontiers, dist_param, σᵥ²)  # generate var parameters for making estimation table
+  # check multicollinearity
+  frontiers = isMultiCollinearity(:frontiers, frontiers; warn=verbose)[1]
+  σᵥ² = isMultiCollinearity(:σᵥ², σᵥ²; warn=verbose)[1]
 
-    return PanelData{T}(rowidx, type, σᵥ², depvar, frontiers, numberofobs(depvar)), dist, col1, col2
+  # creat parameters' names of the output estimation table
+  col1 = paramname_col1(fieldnames(typeof(dist)))  # generate the parameters' names for making estimation table
+  col2 = isa(df, DataFrame) ?
+         paramname_col2(_frontiers, dist_param, _σᵥ²) :
+         paramname_col2(frontiers, dist_param, σᵥ²)  # generate var parameters for making estimation table
+
+  return PanelData{T}(rowidx, type, σᵥ², depvar, frontiers, numberofobs(depvar)), dist, col1, col2
 end
 
 
@@ -440,54 +440,51 @@ Print some customized model information(before optimization process)
 
 """
 function _modelinfo(modelinfo1, modelinfo2)
-    printstyled("\n*********************************\n "; color=:cyan)
-    printstyled("     Model Specification      \n"; color=:cyan); 
-    printstyled("*********************************\n\n"; color=:cyan)
-    println("    $(modelinfo1)\n")  # name of model
-    println("$(modelinfo2)")  # some customized information
+  printstyled("\n*********************************\n "; color=:cyan)
+  printstyled("     Model Specification      \n"; color=:cyan)
+  printstyled("*********************************\n\n"; color=:cyan)
+  println("    $(modelinfo1)\n")  # name of model
+  println("$(modelinfo2)")  # some customized information
 end
 
 
 function num(a)
-    str_a = string(a)
-    check = str_a[end]
-    if check == '1'
-        return "$(str_a) st"
-    elseif check == '2'
-        return "$(str_a) nd"
-    elseif check == '3'
-        return "$(str_a) rt"
-    else
-        return "$(str_a) th"
-    end
+  str_a = string(a)
+  check = str_a[end]
+  if check == '1'
+    return "$(str_a) st"
+  elseif check == '2'
+    return "$(str_a) nd"
+  elseif check == '3'
+    return "$(str_a) rt"
+  else
+    return "$(str_a) th"
+  end
 end
 
 """
     isMultiCollinearity(name::Symbol, themat::Matrix{<:Real})
-    isMultiCollinearity(_d::AbstractDist)
 
 *optional utility function*
 
-Two method to check the Multicollinearity. The first element of return tuple is 
-non-multicollinearity matrix and the second is indices of pivot columns
-
+Check the multicollinearity
 """
-function isMultiCollinearity(name::Symbol, a; warn = true)
-    colnum = size(a, 2)
-    colnum == 1 && (return a, [-1])
-    pivots = rref_with_pivots(a)[2]::Vector{Int64}
+function isMultiCollinearity(name::Symbol, a; warn=true)
+  colnum = size(a, 2)
+  colnum == 1 && (return a, [-1])
+  pivots = rref_with_pivots(a)[2]::Vector{Int64}
 
-    if length(pivots) != colnum
-        if warn
-            printstyled("\n * Find Multicollinearity\n\n", color=:red)
-            for j in filter(x->!(x in pivots), 1:colnum)
-                println("    the $(num(j)) column in $(name) is dropped")
-            end
-        end
-        return a[:, pivots], pivots
+  if length(pivots) != colnum
+    if warn
+      printstyled("\n * Find Multicollinearity\n\n", color=:red)
+      for j in filter(x -> !(x in pivots), 1:colnum)
+        println("    the $(num(j)) column in $(name) is dropped")
+      end
     end
+    return a[:, pivots], pivots
+  end
 
-    return a, pivots
+  return a, pivots
 end
 
 
@@ -510,19 +507,19 @@ Half{Vector{Int64}}([1])
 
 """
 function isconstant(label::Symbol, a)
-    size(a, 2) > 1 && error("the $label must be constant")
-    constant = length(unique(a)) == 1 ? true : false
-    !constant && error("the $label must be constant")
+  size(a, 2) > 1 && error("the $label must be constant")
+  constant = length(unique(a)) == 1 ? true : false
+  !constant && error("the $label must be constant")
 
-    return a
+  return a
 end
 
-function isconstant(a::T) where{T<:AbstractDist}
-    new_dist = T(
-        isconstant.(fieldnames(T), unpack(a))...
-    )
+function isconstant(a::T) where {T<:AbstractDist}
+  new_dist = T(
+    isconstant.(fieldnames(T), unpack(a))...
+  )
 
-    return new_dist
+  return new_dist
 end
 
 
@@ -541,12 +538,12 @@ be done applying model specific method `sfspec`.*
 
 """
 function Ψ(frontiers, fitted_dist, σᵥ²)
-    # length of 30 just for the prevention
-    # notice that the type can't be assiguned(`Vector{Int}(undf, 30)` is not allowed) since we need to define elements later
-    ψ       = Vector{Int64}(undef, 3)
-    ψ[1:3] .= numberofvar(frontiers), sum(numberofvar.(unpack(fitted_dist))), numberofvar(σᵥ²)
+  # length of 30 just for the prevention
+  # notice that the type can't be assiguned(`Vector{Int}(undf, 30)` is not allowed) since we need to define elements later
+  ψ = Vector{Int64}(undef, 3)
+  ψ[1:3] .= numberofvar(frontiers), sum(numberofvar.(unpack(fitted_dist))), numberofvar(σᵥ²)
 
-    return ψ
+  return ψ
 end
 
 
@@ -575,19 +572,19 @@ julia> ψ = [3, 2, 5]; slice(ξ, ψ, mle=true)
 ```
 
 """
-function slice(ξ::Vector{T}, ψ; mle=false) where T
-    p   = mle ? 
-        Vector{Vector{T}}(undef, length(ψ)-1) : 
-        Vector{Vector{T}}(undef, length(ψ))
+function slice(ξ::Vector{T}, ψ; mle=false) where {T}
+  p = mle ?
+      Vector{Vector{T}}(undef, length(ψ) - 1) :
+      Vector{Vector{T}}(undef, length(ψ))
 
-    beg = 1
-    for i = eachindex(p)
-        en   = beg + ψ[i] - 1
-        p[i] = ξ[beg:en]
-        beg  = en + 1
-    end
+  beg = 1
+  for i = eachindex(p)
+    en = beg + ψ[i] - 1
+    p[i] = ξ[beg:en]
+    beg = en + 1
+  end
 
-    return p
+  return p
 end
 
 
@@ -614,7 +611,7 @@ To calculate the number of observations.
 """
 numberofobs(m::AbstractMatrix) = size(m, 1)
 numberofobs(v::AbstractVector) = length(v)
-numberofobs(a::AbstractData)   = a.nofobs
+numberofobs(a::AbstractData) = a.nofobs
 
 
 """
@@ -641,11 +638,11 @@ julia> unpack(dist, :μ)
 
 """
 function unpack(A, args...)
-    if length(args) == 0
-        return [Base.getproperty(A, i) for i in fieldnames(typeof(A))]
-    else
-        return [Base.getproperty(A, i) for i in args]
-    end
+  if length(args) == 0
+    return [Base.getproperty(A, i) for i in fieldnames(typeof(A))]
+  else
+    return [Base.getproperty(A, i) for i in args]
+  end
 end
 
 
@@ -669,15 +666,15 @@ julia> rowidx = tnumTorowidx(tnum)
 
 """
 function tnumTorowidx(tnum)
-    rowidx = Vector{UnitRange{Int}}(undef, length(tnum))
-    beg = 1
-    @inbounds for i in eachindex(rowidx)
-        en = beg + tnum[i] - 1
-        rowidx[i] = beg:en
-        beg = en + 1
-    end
-    
-    return rowidx
+  rowidx = Vector{UnitRange{Int}}(undef, length(tnum))
+  beg = 1
+  @inbounds for i in eachindex(rowidx)
+    en = beg + tnum[i] - 1
+    rowidx[i] = beg:en
+    beg = en + 1
+  end
+
+  return rowidx
 end
 
 
@@ -702,18 +699,18 @@ julia> static_panelize([1 2; 1 2; 1 2; 3 4; 3 4], tnumTorowidx([3, 2]))
 ```
 
 """
-function static_panelize(a::AbstractVector{T}, rowidx) where T
-    return Vector{T}[
-        a[i]
-        for i in rowidx
-    ]
+function static_panelize(a::AbstractVector{T}, rowidx) where {T}
+  return Vector{T}[
+    a[i]
+    for i in rowidx
+  ]
 end
 
-function static_panelize(a::AbstractMatrix{T}, rowidx) where T
-        return Matrix{T}[
-            a[i, :]
-            for i in rowidx
-        ]
+function static_panelize(a::AbstractMatrix{T}, rowidx) where {T}
+  return Matrix{T}[
+    a[i, :]
+    for i in rowidx
+  ]
 end
 
 
@@ -744,25 +741,25 @@ julila> sf_demean([1 2; 2 3; 3 4; 5 6; 6 7], tnumTorowidx([3, 2]))
 
 """
 function sf_demean(a::AbstractVector, rowidx)
-    demean = similar(a)
-    
-    @inbounds for idx in rowidx
-        instance = view(a, idx)
-        demean[idx] = instance .- mean(instance)
-    end
-    
-    return demean
+  demean = similar(a)
+
+  @inbounds for idx in rowidx
+    instance = view(a, idx)
+    demean[idx] = instance .- mean(instance)
+  end
+
+  return demean
 end
 
 function sf_demean(a::AbstractMatrix, rowidx)
-    demean = similar(a)
-    
-    @inbounds for idx in rowidx
-        instance = view(a, idx, :)
-        demean[idx, :] = instance .- mean(instance, dims=1)
-    end
-    
-    return demean
+  demean = similar(a)
+
+  @inbounds for idx in rowidx
+    instance = view(a, idx, :)
+    demean[idx, :] = instance .- mean(instance, dims=1)
+  end
+
+  return demean
 end
 
 
@@ -772,26 +769,26 @@ end
 
 panelize after demean
 """
-function demean_panelize(a::AbstractVector{T}, rowidx) where T
-    data = Vector{Vector{T}}(undef, length(rowidx))
-    
-    @inbounds for i = eachindex(data)
-        instance = view(a, rowidx[i])
-        data[i] = instance .- mean(instance)
-    end
-    
-    return data
+function demean_panelize(a::AbstractVector{T}, rowidx) where {T}
+  data = Vector{Vector{T}}(undef, length(rowidx))
+
+  @inbounds for i = eachindex(data)
+    instance = view(a, rowidx[i])
+    data[i] = instance .- mean(instance)
+  end
+
+  return data
 end
 
-function demean_panelize(a::AbstractMatrix{T}, rowidx) where T
-    data = Vector{Matrix{T}}(undef, length(rowidx))
-    
-    @inbounds for i = eachindex(data)
-        instance = view(a, rowidx[i], :)
-        data[i] = instance .- mean(instance, dims = 1)
-    end
-    
-    return data
+function demean_panelize(a::AbstractMatrix{T}, rowidx) where {T}
+  data = Vector{Matrix{T}}(undef, length(rowidx))
+
+  @inbounds for i = eachindex(data)
+    instance = view(a, rowidx[i], :)
+    data[i] = instance .- mean(instance, dims=1)
+  end
+
+  return data
 end
 
 
@@ -818,12 +815,12 @@ julia> valid_range(rowidx, totallag; shift = 1)
 ```
 
 """
-function valid_range(rowidx, lag; shift = 0) 
+function valid_range(rowidx, lag; shift=0)
 
-    return UnitRange{Int64}[
-        view(i, (1+lag) : length(i)) .- shift 
-        for i in rowidx if length(i) > lag
-    ]
+  return UnitRange{Int64}[
+    view(i, (1+lag):length(i)) .- shift
+    for i in rowidx if length(i) > lag
+  ]
 
 end
 
@@ -842,9 +839,9 @@ julia> drop_panelize([1 2; 3 4; 5 6; 7 8; 9 10], tnumTorowidx([3, 2]), 1)
 ```
 
 """
-function drop_panelize(a, rowidx, lag; shift = 0)
-    _rowidx = valid_range(rowidx, lag; shift = shift)
-    return static_panelize(a, _rowidx)
+function drop_panelize(a, rowidx, lag; shift=0)
+  _rowidx = valid_range(rowidx, lag; shift=shift)
+  return static_panelize(a, _rowidx)
 end
 
 
@@ -864,13 +861,13 @@ julia> newrange(a, totallag)
 ```
 
 """
-function newrange(rowidx, lag) 
-    @inbounds newrange = [
-        rowidx[i][(begin:end-lag)] .- (i-1)*lag
-        for i in eachindex(rowidx) if length(rowidx[i])>lag
-    ]
+function newrange(rowidx, lag)
+  @inbounds newrange = [
+    rowidx[i][(begin:end-lag)] .- (i - 1) * lag
+    for i in eachindex(rowidx) if length(rowidx[i]) > lag
+  ]
 
-    return newrange
+  return newrange
 end
 
 
@@ -915,15 +912,15 @@ julia> lagdrop(data, rowidx, 2)
 
 """
 function lagdrop(a::AbstractVector, rowidx, lag)
-    new = valid_range(rowidx, lag)
+  new = valid_range(rowidx, lag)
 
-    return a[union(new...)]
+  return a[union(new...)]
 end
 
 function lagdrop(a::AbstractMatrix, rowidx, lag)
-    new = valid_range(rowidx, lag)
+  new = valid_range(rowidx, lag)
 
-    return a[union(new...), :]
+  return a[union(new...), :]
 end
 
 
@@ -960,13 +957,13 @@ julia> lagshift(data, rowidx, 2; lag = 2)
 
 """
 function lagshift(a::AbstractVector, rowidx, lag; shift)
-    new = valid_range(rowidx, lag; shift = shift)
+  new = valid_range(rowidx, lag; shift=shift)
 
-    return a[union(new...)]
+  return a[union(new...)]
 end
 
 function lagshift(a::AbstractMatrix, rowidx, lag; shift)
-    new = valid_range(rowidx, lag; shift = shift)
+  new = valid_range(rowidx, lag; shift=shift)
 
-    return a[union(new...), :]
+  return a[union(new...), :]
 end
