@@ -1,8 +1,6 @@
 ---
 title: "Truncated Normal Distribution(Cross)"
-format:
-    html:
-        code-fold: false
+format: pdf
 jupyter: julia-1.9
 ---
 
